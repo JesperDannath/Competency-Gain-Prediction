@@ -212,7 +212,7 @@ def e_step_late_mmle(data, current_parameters, prior_dist, ICC):
 # Main EM-Algorithm
 def em_algorithm(response_data, starting_parameters, prior_dist,
                  e_step,
-                 m_step=m_step_mmle, stop_criterion=[0.01, 0.01], ICC=ICC, max_iter=50):
+                 m_step=m_step_mmle, stop_criterion=[0.01, 0.01], ICC=ICC, max_iter=90):
     """Basic formulation of the EM-Algorithm for estimimating Parameters for IRT
 
     Args:
@@ -377,7 +377,7 @@ class knowledge_growth_model():
         else:
             return(pd.DataFrame(prediction.astype("int64"), index=early_response_data.index))
 
-    def get_training_performance(self, early_response_data, late_response_data, s_estimate=[]):
+    def get_training_performance(self, early_response_data, late_response_data, s_estimate=[], return_performance=False):
         """Predict late responses and calculate performance measures to compare models. 
 
         Args:
@@ -405,6 +405,8 @@ class knowledge_growth_model():
         print("Accuracy per Question: \n{0} \nOverall acuracy: {1}".format(
             1-np.mean(np.abs(prediction_shift_index-late_response_data_drop), axis=0), 1-np.mean(np.abs(prediction_shift_index-late_response_data_drop).flatten())))
         print("AUC-Score: {0}".format(auc_score))
+        if return_performance:
+            return({"Accuracy": 1-np.mean(np.abs(prediction_shift_index-late_response_data_drop).flatten()), "AUC": auc_score})
 
     def predict_early_ability(self, early_response_data):
         alpha = fit_ability(early_response_data, [
