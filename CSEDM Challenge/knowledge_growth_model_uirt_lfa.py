@@ -31,6 +31,19 @@ def ICC(parameters, theta):
     return(sigma)
 
 
+def ICC_parameter_gradient(parameters, theta):
+    a, b = parameters
+    try:
+        item_dim = len(b)
+    except Exception:
+        item_dim = 1
+    ICC_values = ICC(parameters, theta)
+    outer_gradient = (ICC_values*(1-ICC_values)).flatten()
+    inner_gradient = [theta-b, -a]
+    gradient = [outer_gradient*inner_grad for inner_grad in inner_gradient]
+    return(gradient)
+
+
 def LFA_Curve(parameters, alpha, s):
     """ICC that corresponds to the Concept of LFA (Learning Factor Analysis) and Features prior ability as well as item and person paramers.
 
@@ -51,8 +64,47 @@ def LFA_Curve(parameters, alpha, s):
     return(sigma)
 
 
+def LFA_curve_parameter_gradient(parameters, alpha, s):
+    beta, gamma = parameters
+    LFA_values = LFA_Curve(parameters, alpha, s)
+    outer_gradient = (LFA_values*(1-LFA_values)).flatten()
+    inner_gradient = [1, s]
+    gradient = [outer_gradient*inner_grad for inner_grad in inner_gradient]
+    return(gradient)
+
+
+def LFA_Curve_2PM(parameters, alpha, s):
+    """ICC that corresponds to the Concept of LFA (Learning Factor Analysis) and Features prior ability as well as item and person paramers.
+
+    Args:
+        parameters (list): list of the format [beta, gamma]. beta is the vector of Item-Easiness. gamma is the vector of item-training effectiveness. 
+        alpha (np.ndarray): prior ability values. 
+        s (np.ndarray): Person training-extend. 
+    """
+    beta, gamma, eta = parameters
+    try:
+        item_dim = len(beta)
+    except Exception:
+        item_dim = 1
+    s_expand = np.transpose(np.tile(s, (item_dim, 1)))
+    sigmoid_arg = np.add(np.expand_dims(np.multiply(alpha, eta), axis=1),
+                         np.add(beta, np.multiply(gamma, s_expand)))
+    sigma = 1/(1+np.exp(-1*sigmoid_arg))
+    return(sigma)
+
+
+def LFA_curve_2PL_parameter_gradient(parameters, alpha, s):
+    beta, gamma = parameters
+    LFA_values = LFA_Curve(parameters, alpha, s)
+    outer_gradient = (LFA_values*(1-LFA_values)).flatten()
+    inner_gradient = [1, s, alpha]
+    gradient = [outer_gradient*inner_grad for inner_grad in inner_gradient]
+    return(gradient)
+
 ########################################################################
 # Prior Distributions
+
+
 def generate_prior_norm(loc, scale, K, dist=norm):
     prior_dist = dist(loc, scale)
     start_point = loc-2.5*scale
@@ -85,7 +137,25 @@ def complete_data_log_likelihood(ability_weight, correct_response_weight, curren
     return(log_likelihood)
 
 
-def m_step_mmle(expectation, current_parameters, prior_dist, ICC):
+def gradient_complete_data_log_likelihood(ability_weight, correct_response_weight, current_parameters, quadratures, gradient_func, ICC):
+    # Number of Quadratures or factors of the latent prior
+    K = len(ability_weight)
+    J = len(current_parameters[0])  # Number of Items
+    ICC_values = ICC(current_parameters, quadratures)
+    likelihood_gradient = np.empty(shape=(J, len(current_parameters)))
+    for j in range(0, J):
+        r_j = correct_response_weight[j, :]
+        ICC_gradients = gradient_func(
+            [np.array([current_parameter[j]]) for current_parameter in current_parameters], quadratures)
+        for g, ICC_gradient in enumerate(ICC_gradients):
+            likelihood_gradient[j, g] = np.sum(r_j*(1/ICC_values[:, j])*ICC_gradient -
+                                               (ability_weight-r_j)*(1/(1-ICC_values[:, j]))*ICC_gradient)
+        # log_likelihood += np.dot(r_j, np.log(ICC_values[:, j])) + np.dot(np.subtract(ability_weight, r_j), np.log(
+        #    (1-ICC_values[:, j]))) + np.dot(ability_weight*np.ones((1, K)), np.log(quadrature_probs))
+    return(likelihood_gradient)
+
+
+def m_step_mmle(expectation, current_parameters, prior_dist, ICC, method="BFGS"):
     """M-Step for a classic UIRT-Model with a latent prior distribution like in Hanson 2000
 
     Args:
@@ -105,7 +175,16 @@ def m_step_mmle(expectation, current_parameters, prior_dist, ICC):
     #a_t, b_t = current_parameters
     nll(np.concatenate(current_parameters, axis=0))
     x0 = np.concatenate(current_parameters, axis=0)
-    res = minimize(nll, x0=x0, method='Nelder-Mead')  # BFGS
+    if method == "BFGS":
+        def jacobi(x): return -1*gradient_complete_data_log_likelihood(ability_weight, correct_response_weight,
+                                                                       current_parameters=[x[0: len(current_parameters[0])], x[len(current_parameters[0]): len(
+                                                                           current_parameters[0])+len(current_parameters[1])]],  # a=x[0:len(a)], b=x[len(a):len(x)],
+                                                                       quadratures=prior_dist[0], gradient_func=ICC_parameter_gradient,
+                                                                       ICC=ICC).transpose().flatten()
+        jacobi(x0)
+        res = minimize(nll, x0=x0, method='BFGS', jac=jacobi)
+    elif method == "Nelder-Mead":
+        res = minimize(nll, x0=x0, method='Nelder-Mead')  # BFGS
     new_parameters = [res.x[0: len(current_parameters[0])], res.x[len(
         current_parameters[0]): len(current_parameters[0])+len(current_parameters[1])]]
     #a_hat = res.x[0:len(a_t)]
@@ -114,7 +193,7 @@ def m_step_mmle(expectation, current_parameters, prior_dist, ICC):
     return(new_parameters, likelihood)
 
 
-def m_step_late_mmle(expectation, current_parameters, prior_dist, ICC):
+def m_step_late_mmle(expectation, current_parameters, prior_dist, ICC, method="BFGS"):
     """M-Step for a LFA-Model with a latent prior distribution like in Hanson 2000
 
     Args:
@@ -134,7 +213,18 @@ def m_step_late_mmle(expectation, current_parameters, prior_dist, ICC):
                                                        ICC=lambda parameters, s: ICC(parameters, expected_alpha, s))
     nll(np.concatenate(current_parameters, axis=0))
     x0 = np.concatenate(current_parameters, axis=0)
-    res = minimize(nll, x0=x0, method='Nelder-Mead')  # BFGS
+    if method == "BFGS":
+        def jacobi(x): return -1*gradient_complete_data_log_likelihood(ability_weight, correct_response_weight,
+                                                                       current_parameters=[x[0: len(current_parameters[0])], x[len(current_parameters[0]): len(
+                                                                           current_parameters[0])+len(current_parameters[1])]],  # a=x[0:len(a)], b=x[len(a):len(x)],
+                                                                       quadratures=prior_dist[0],
+                                                                       gradient_func=lambda parameters, s: LFA_curve_parameter_gradient(
+                                                                           parameters, expected_alpha, s),
+                                                                       ICC=lambda parameters, s: ICC(parameters, expected_alpha, s)).transpose().flatten()
+        jacobi(x0)
+        res = minimize(nll, x0=x0, method='BFGS', jac=jacobi)
+    elif method == "Nelder-Mead":
+        res = minimize(nll, x0=x0, method='Nelder-Mead')
     new_parameters = [res.x[0: len(current_parameters[0])], res.x[len(
         current_parameters[0]): len(current_parameters[0])+len(current_parameters[1])]]
     likelihood = res.fun
