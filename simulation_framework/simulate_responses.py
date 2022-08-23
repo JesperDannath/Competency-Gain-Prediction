@@ -11,13 +11,13 @@ if True:  # noqa: E402
 
 class response_simulation():
 
-    def __init__(self, population, early_item_set, late_item_set=None) -> None:
+    def __init__(self, population, early_item_params, late_item_params=None) -> None:
         self.population = population
-        self.item_set = early_item_set
-        self.item_dimension = early_item_set.number_of_items
-        self.latent_dimension = early_item_set.latent_dimension
+        self.item_set = early_item_params
+        self.item_dimension = early_item_params["item_dimension"]
+        self.latent_dimension = early_item_params["latent_dimension"]
         self.early_model = mirt_2pl(self.item_dimension, self.latent_dimension,
-                                    A=early_item_set.get_A(), delta=early_item_set.get_delta())
+                                    A=early_item_params["A"], delta=early_item_params["delta"])
 
     def sample(self, sample_size):
         sample = {}
