@@ -1,0 +1,23 @@
+<diagram program="umletino" version="15.0.0"><zoom_level>10</zoom_level><element><id>UMLClass</id><coordinates><x>490</x><y>140</y><w>210</w><h>120</h></coordinates><panel_attributes>irt_model
+--
+-latent_dimension: int
+-item_dimension: int
+--
++get_model_class(): string
++get_person_parameters(): dict
++get_item_parameters(): dict
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>500</x><y>250</y><w>30</w><h>130</h></coordinates><panel_attributes>lt=&lt;&lt;-</panel_attributes><additional_attributes>10;10;10;110</additional_attributes></element><element><id>UMLClass</id><coordinates><x>320</x><y>360</y><w>230</w><h>100</h></coordinates><panel_attributes>mirt_2pl
+--
+
+--
++item_characteristic_curve(A: 2d.array,
+ delta: array, theta: array): array
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>620</x><y>360</y><w>230</w><h>120</h></coordinates><panel_attributes>mirt_2pl_gain
+--
+
+--
++lfa_curve(A: 2d.array, delta: array,
+ theta: array, s: array): array
++crp_function(A: 2d.array, delta: array,
+ theta: array, s: array): array
+</panel_attributes><additional_attributes></additional_attributes></element><element><id>Relation</id><coordinates><x>660</x><y>250</y><w>30</w><h>130</h></coordinates><panel_attributes>lt=&lt;&lt;-</panel_attributes><additional_attributes>10;10;10;110</additional_attributes></element></diagram>
