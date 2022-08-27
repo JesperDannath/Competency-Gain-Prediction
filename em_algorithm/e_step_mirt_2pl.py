@@ -1,5 +1,5 @@
 from multiprocessing import reduction
-import e_step
+from e_step import e_step
 import numpy as np
 import pandas as pd
 import os
@@ -14,8 +14,8 @@ if True:  # noqa: E402
 
 class e_step_ga_mml(e_step):
 
-    def __init__(self, model: mirt_2pl) -> None:
-        super().__init__()
+    def __init__(self, model: mirt_2pl, incomplete_data) -> None:
+        super().__init__(incomplete_data = incomplete_data)
         self.model = model
 
     # TODO: Ensure that model uses the current parameters
@@ -23,10 +23,10 @@ class e_step_ga_mml(e_step):
     def conditional_ability_normalising_constant(self, response_pattern):
         def joint_prob(theta): return self.model.joint_competency_answer_density(
             theta=theta, response_vector=response_pattern)
-        normalizing_constant = integrate.nquad(joint_prob)
+        normalizing_constant, error = integrate.nquad(joint_prob, ranges=[[-np.inf, np.inf]])
         return(normalizing_constant)
 
-    def step(self, response_data: pd.DataFrame, current_item_parameters: dict, current_person_parameters: dict) -> dict:
+    def step(self, response_data: pd.DataFrame, current_item_parameters: dict={}, current_person_parameters: dict={}) -> dict:
         """E-Step for a classic MIRT Model based on Bock & Aitkin (1981) as well as Zhang (2005). 
 
         Args:

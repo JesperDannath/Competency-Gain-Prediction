@@ -40,12 +40,16 @@ class mirt_2pl(irt_model):
                                         delta=np.empty(0), sigma=np.empty(0)) -> np.array:
         if sigma.size == 0:
             sigma = self.person_parameters["covariance"]
+        if A.size == 0:
+            A = self.item_parameters["discrimination_matrix"]
+        if delta.size == 0:
+            delta = self.item_parameters["intercept_vector"]
         correct_response_probabilities = self.icc(theta, A, delta)[0]
         marginal_competency_density = multivariate_normal.pdf(x=theta, mean=np.zeros(
             self.latent_dimension), cov=sigma)
-        joint_density = np.multiply(np.prod(np.multiply(correct_response_probabilities, response_vector)),
-                                    np.prod(np.multiply(np.subtract(1, correct_response_probabilities), np.subtract(1, response_vector))))
-        joint_density = np.multiply(joint_density, marginal_competency_density)
+        joint_density = np.add(np.multiply(correct_response_probabilities, response_vector),
+                                np.multiply(np.subtract(1, correct_response_probabilities), np.subtract(1, response_vector)))
+        joint_density = np.multiply(np.prod(joint_density), marginal_competency_density)
         return(joint_density)
 
     def latent_density(self, theta):

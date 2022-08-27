@@ -1,6 +1,15 @@
+from binascii import Incomplete
 import unittest
-from mirt_2pl import mirt_2pl
 import numpy as np
+import os
+import sys
+from e_step import e_step
+from e_step_mirt_2pl import e_step_ga_mml
+print(os.path.realpath("./models"))
+sys.path.append(os.path.realpath("./models"))
+# Custom modules, import violates pep8, so we have to declare an exeption
+if True:  # noqa: E402
+    from mirt_2pl import mirt_2pl
 
 
 class test_mirt_2pl(unittest.TestCase):
@@ -17,10 +26,29 @@ class test_mirt_2pl(unittest.TestCase):
                        [0, 1, 0],
                        [0, 0, 1]], dtype=np.float)
         delta2 = np.array([1, 1, 1], dtype=np.float)
-        sigma2 = np.array([[1,0],
-                           [0,1]])
+        sigma2 = np.array([[1,0,0],
+                           [0,1,0],
+                           [0,0,1]])
         self.mirt_2pl_2d = mirt_2pl(
             item_dimension=3, latent_dimension=3, A=A2, delta=delta2, sigma=sigma2)
+        self.incomplete_data = np.array([[1,1,1],
+                                        [0,0,0],
+                                        [1,0,0],
+                                        [0,1,0],
+                                        [0,0,1]])
+        self.e_step_2pl = e_step_ga_mml(model=self.mirt_2pl_2d, incomplete_data=self.incomplete_data)
+
+    def test_conditional_ability_normalizing_constant(self):
+        response_pattern = np.array([1,1,0])
+        normalizing_constant = self.e_step_2pl.conditional_ability_normalising_constant(
+            response_pattern=response_pattern)
+        self.assertTrue(normalizing_constant != 0.0)
+
+    def test_step_ga_mirt_2pl(self):
+        #Test with internal parameter-values
+        result_function_dict = self.e_step_2pl.step(self.incomplete_data)
+        self.assertTrue("q_0" in result_function_dict.keys())
+        self.assertTrue("q_item_list" in result_function_dict.keys())
 
     def test_dimensions(self):
         self.assertEqual(self.mirt_2pl_1d.item_dimension, 3)
