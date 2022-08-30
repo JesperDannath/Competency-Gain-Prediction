@@ -1,6 +1,7 @@
 from binascii import Incomplete
 import unittest
 import numpy as np
+import pandas as pd
 import os
 import sys
 from e_step import e_step
@@ -26,64 +27,52 @@ class test_mirt_2pl(unittest.TestCase):
                        [0, 1, 0],
                        [0, 0, 1]], dtype=np.float)
         delta2 = np.array([1, 1, 1], dtype=np.float)
-        sigma2 = np.array([[1,0,0],
-                           [0,1,0],
-                           [0,0,1]])
+        sigma2 = np.array([[1, 0, 0],
+                           [0, 1, 0],
+                           [0, 0, 1]])
         self.mirt_2pl_2d = mirt_2pl(
             item_dimension=3, latent_dimension=3, A=A2, delta=delta2, sigma=sigma2)
-        self.incomplete_data = np.array([[1,1,1],
-                                        [0,0,0],
-                                        [1,0,0],
-                                        [0,1,0],
-                                        [0,0,1]])
-        self.e_step_2pl = e_step_ga_mml(model=self.mirt_2pl_2d, incomplete_data=self.incomplete_data)
+        self.incomplete_data = pd.DataFrame(np.array([[1, 1, 1],
+                                                      [0, 0, 0],
+                                                      [1, 0, 0],
+                                                      [0, 1, 0],
+                                                      [0, 0, 1]]))
+        self.e_step_2pl = e_step_ga_mml(
+            model=self.mirt_2pl_2d, incomplete_data=self.incomplete_data)
 
     def test_conditional_ability_normalizing_constant(self):
-        response_pattern = np.array([1,1,0])
+        response_pattern = np.array([1, 1, 0])
         normalizing_constant = self.e_step_2pl.conditional_ability_normalising_constant(
             response_pattern=response_pattern)
+        # nquad lösung für [-10,10]: 0.1472
+        # Monte Carlo Lösung: 0.1486
         self.assertTrue(normalizing_constant != 0.0)
 
     def test_step_ga_mirt_2pl(self):
-        #Test with internal parameter-values
+        # Test with internal parameter-values
         result_function_dict = self.e_step_2pl.step(self.incomplete_data)
+        # Test functionality of step function
         self.assertTrue("q_0" in result_function_dict.keys())
         self.assertTrue("q_item_list" in result_function_dict.keys())
-
-    def test_dimensions(self):
-        self.assertEqual(self.mirt_2pl_1d.item_dimension, 3)
-        self.assertEqual(self.mirt_2pl_2d.item_dimension, 3)
-        self.assertEqual(self.mirt_2pl_1d.latent_dimension, 1)
-        self.assertEqual(self.mirt_2pl_2d.latent_dimension, 3)
-
-    def test_icc_result_shapes(self):
-        # One Person input
-        theta1 = np.array([[0]])
-        res1 = self.mirt_2pl_1d.icc(theta1)
-        self.assertEqual(res1.shape, (1, 3))
-        theta2 = np.array([[0, 1, 2]])
-        res2 = self.mirt_2pl_2d.icc(theta2)
-        self.assertEqual(res2.shape, (1, 3))
-        # Two Person input
-        theta1 = np.array([[0],
-                           [1]])
-        res1 = self.mirt_2pl_1d.icc(theta1)
-        self.assertEqual(res1.shape, (2, 3))
-        theta2 = np.array([[0, 1, 2],
-                           [1, 2, 3]])
-        res2 = self.mirt_2pl_2d.icc(theta2)
-        self.assertEqual(res2.shape, (2, 3))
-
-    def test_icc_result(self):
-        # Naive result
-        theta1 = np.array([[0]])
-        res1 = self.mirt_2pl_1d.icc(theta1)
-        self.assertTrue(np.array_equal(res1, np.array([[0.5, 0.5, 0.5]])))
-        # Check for correct sign in exponent
-        theta2 = np.array([[1, 1, 1]])
-        res2 = self.mirt_2pl_2d.icc(theta2)
-        self.assertTrue(np.array_equal(np.round(res2, 2),
-                                       np.array([[0.88, 0.88, 0.88]])))
+        # Test functionality of output functions
+        # Test q_0
+        q_0 = result_function_dict["q_0"]
+        sigma_input = np.array([[1, 0.5, 0.5],
+                                [0.5, 1, 0.5],
+                                [0.5, 0.5, 1]])
+        q_0_value = q_0(sigma_input)
+        self.assertTrue(q_0_value != 0.0)
+        # Test q_item
+        A_input = np.array([[1, 1, 1],
+                            [1, 0, 0],
+                            [1, 1, 0]])
+        delta_input = np.array([0, 0, 0])
+        for i in range(0, self.mirt_2pl_2d.item_dimension):
+            q_item = result_function_dict["q_item_list"][i]
+            a_item = A_input[:, i]
+            delta_item = delta_input[i]
+            q_item_value = q_item(a_item=a_item, delta_item=delta_item)
+            self.assertTrue(q_item_value != 0.0)
 
 
 if __name__ == '__main__':

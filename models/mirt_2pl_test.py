@@ -17,8 +17,9 @@ class test_mirt_2pl(unittest.TestCase):
                        [0, 1, 0],
                        [0, 0, 1]], dtype=np.float)
         delta2 = np.array([1, 1, 1], dtype=np.float)
-        sigma2 = np.array([[1,0],
-                           [0,1]])
+        sigma2 = np.array([[1, 0, 0],
+                           [0, 1, 0],
+                           [0, 0, 1]])
         self.mirt_2pl_2d = mirt_2pl(
             item_dimension=3, latent_dimension=3, A=A2, delta=delta2, sigma=sigma2)
 
@@ -56,6 +57,13 @@ class test_mirt_2pl(unittest.TestCase):
         res2 = self.mirt_2pl_2d.icc(theta2)
         self.assertTrue(np.array_equal(np.round(res2, 2),
                                        np.array([[0.88, 0.88, 0.88]])))
+
+    def test_joint_competency_answer_density(self):
+        theta2 = np.array([1, 1, 1])
+        answer_vector = np.array([1, 0, 1])
+        joint_density = self.mirt_2pl_2d.joint_competency_answer_density(
+            theta=theta2, response_vector=answer_vector)
+        self.assertTrue(joint_density >= 0.0)
 
 
 if __name__ == '__main__':
