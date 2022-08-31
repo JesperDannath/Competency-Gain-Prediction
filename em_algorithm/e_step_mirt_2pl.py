@@ -1,11 +1,9 @@
-from multiprocessing import reduction
 from e_step import e_step
 import numpy as np
 import pandas as pd
 import os
 import sys
 from scipy import integrate
-print(os.path.realpath("./models"))
 sys.path.append(os.path.realpath("./models"))
 # Custom modules, import violates pep8, so we have to declare an exeption
 if True:  # noqa: E402
@@ -84,8 +82,7 @@ class e_step_ga_mml(e_step):
                 r_item_theta = r_item(item, theta)
                 log_likelihood_item = np.multiply(np.log(
                     icc_value), r_0_theta) + np.multiply(np.subtract(r_0_theta, r_item_theta), np.log(1-icc_value))
-                return(log_likelihood_item)
-            func(np.array([1, 1, 1]))
+                return(log_likelihood_item.tolist()[0][0])
             # Monte Carlo integration
             mean = 0
             for i in range(0, N):
