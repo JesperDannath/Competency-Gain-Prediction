@@ -1,6 +1,6 @@
 # Knowledge-Growth-Prediction
 
-Die aktuelle Funktionalität kann über simulation_experiments.ipyn nachvollzogen werden
+Die aktuelle Funktionalität kann über simulation_experiments.ipynb nachvollzogen werden
 
 Bekannte Probleme:
 - EM-Algorithmus ist langsam
