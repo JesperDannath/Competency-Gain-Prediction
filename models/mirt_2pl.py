@@ -1,11 +1,11 @@
-from irt_model import irt_model
+from models.irt_model import irt_model
 import numpy as np
 from scipy.stats import multivariate_normal
 
 
 class mirt_2pl(irt_model):
 
-    def __init__(self, item_dimension, latent_dimension, A, delta, sigma) -> None:
+    def __init__(self, item_dimension, latent_dimension, A=None, delta=None, sigma=None) -> None:
         """
         Args:
             item_dimension (int): Number of items in test
@@ -84,3 +84,13 @@ class mirt_2pl(irt_model):
         joint_density = np.multiply(
             response_probability, marginal_competency_density)
         return(joint_density)
+
+    def set_parameters(self, parameters):
+        self.item_parameters = parameters["item_parameters"]
+        self.person_parameters = parameters["person_parameters"]
+
+    def corr_to_sigma(self, corr):
+        new_sigma = self.person_parameters["covariance"].copy()
+        new_sigma[np.triu_indices(self.latent_dimension, k=1)] = corr
+        new_sigma[np.triu_indices(self.latent_dimension, k=1)] = corr
+        return(new_sigma)

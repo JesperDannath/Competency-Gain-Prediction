@@ -1,6 +1,7 @@
 
 import sys
 import os
+import pandas as pd
 from scipy.stats import bernoulli
 print(os.path.realpath("./models"))
 sys.path.append(os.path.realpath("./models"))
@@ -17,7 +18,7 @@ class response_simulation():
         self.item_dimension = early_item_params["item_dimension"]
         self.latent_dimension = early_item_params["latent_dimension"]
         self.early_model = mirt_2pl(self.item_dimension, self.latent_dimension,
-                                    A=early_item_params["A"], delta=early_item_params["delta"])
+                                    A=early_item_params["A"], delta=early_item_params["delta"], sigma=None)
 
     def sample(self, sample_size):
         sample = {}
@@ -25,6 +26,6 @@ class response_simulation():
             sample_size=sample_size)
         p_early = self.early_model.icc(sample["latent_trait"])
         #p_late = LFA_Curve(late_parameters, alpha, s)
-        sample["early_responses"] = bernoulli(p=p_early).rvs()
+        sample["early_responses"] = pd.DataFrame(bernoulli(p=p_early).rvs())
         #late_sample = bernoulli(p=p_late).rvs()
         return(sample)

@@ -1,4 +1,4 @@
-from e_step import e_step
+from em_algorithm.e_step import e_step
 import numpy as np
 import pandas as pd
 import os
@@ -18,7 +18,7 @@ class e_step_ga_mml(e_step):
 
     # TODO: Ensure that model uses the current parameters
     # TODO: Make this more efficient using multiple response patterns as input
-    def conditional_ability_normalising_constant(self, response_pattern, N=1000):
+    def conditional_ability_normalising_constant(self, response_pattern, N=300):
         # function
         def response_prob(theta): return self.model.response_vector_probability(
             theta=theta, response_vector=response_pattern)
@@ -60,7 +60,7 @@ class e_step_ga_mml(e_step):
             # TODO: Monte Carlo
             return(np.sum(np.divide(numerator, denominator)))
 
-        def q_0(sigma, N=1000):
+        def q_0(sigma, N=300):
             def func(theta):
                 factor = np.log(self.model.latent_density(theta, sigma=sigma))
                 numerator = np.array([self.model.response_vector_probability(
@@ -74,7 +74,7 @@ class e_step_ga_mml(e_step):
                 mean += func(theta)/N
             return(mean)
 
-        def q_item(item: int, a: np.array, item_delta: np.array, N=1000):
+        def q_item(item: int, a: np.array, item_delta: np.array, N=300):
             def func(theta):
                 icc_value = self.model.icc(theta=np.expand_dims(theta, axis=0), A=np.expand_dims(
                     a, axis=0), delta=np.array([item_delta]))  # TODO: check whether this is correct

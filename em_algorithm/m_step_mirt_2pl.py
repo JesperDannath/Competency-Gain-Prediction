@@ -1,5 +1,5 @@
 from hashlib import new
-from m_step import m_step
+from em_algorithm.m_step import m_step
 import pandas as pd
 import numpy as np
 from scipy.optimize import minimize
@@ -20,8 +20,8 @@ class m_step_ga_mml(m_step):
         super().__init__()
         self.model = model
 
-    def genetic_algorithm(self, item: int, fitness_function, x0: np.array, constraints=None,
-                          population_size: int = 30, p_mutate: float = 0.5, p_crossover: float = 0.2):
+    def genetic_algorithm(self, fitness_function, x0: np.array, constraints=None,
+                          population_size: int = 10, p_mutate: float = 0.5, p_crossover: float = 0.2):
         # Helping functions
         def mutate(individual): return individual+multivariate_normal.rvs(
             mean=np.zeros(len(individual)), cov=np.identity(len(individual)))
@@ -70,27 +70,31 @@ class m_step_ga_mml(m_step):
             population_base = population_base + list(zip(fitness, population))
             print("Length of Population = {0}".format(len(population_base)))
             population_base.sort(reverse=True)
-        new_a_item = population_base[0][1][0:self.model.latent_dimension]
-        new_delta_item = population_base[0][1][len(x0)-1]
-        return(new_a_item, new_delta_item)
+        return(population_base[0][1])
 
     def step(self, pe_functions: dict):
         # Find the new value for Sigma
-        q_0 = pe_functions["q_0"]
+        print("Maximize Q-0")
 
-        def func(sigma_vector): return q_0(np.reshape(
-            sigma_vector, newshape=(
-                self.model.latent_dimension, self.model.latent_dimension)))
-        x0 = np.reshape(
-            self.model.person_parameters["covariance"], newshape=self.model.latent_dimension**2)
-        new_sigma = minimize(func, x0=x0, method='Nelder-Mead').x
-        new_sigma = np.reshape(new_sigma, newshape=(
-            self.model.latent_dimension, self.model.latent_dimension))
+        # The only parameters we need to optimise are the correlations
+        def q_0(corr_vector):
+            sigma = self.model.corr_to_sigma(corr_vector)
+            return pe_functions["q_0"](np.reshape(
+                sigma, newshape=(
+                    self.model.latent_dimension, self.model.latent_dimension)))
+        x0 = self.model.person_parameters["covariance"][np.triu_indices(
+            self.model.latent_dimension, k=1)]
+        # x0 = np.reshape(
+        #     self.model.person_parameters["covariance"], newshape=self.model.latent_dimension**2)
+        new_corr = self.genetic_algorithm(q_0, x0=x0)
+        #new_sigma = minimize(func, x0=x0, method='BFGS').x
+        new_sigma = self.model.corr_to_sigma(new_corr)
         # Find new values for A and delta
         new_A = np.empty(
             shape=self.model.item_parameters["discrimination_matrix"].shape)
         new_delta = np.empty(
             shape=self.model.item_parameters["intercept_vector"].shape)
+        print("Maximize the Q_i's")
         for item in range(0, self.model.item_dimension):
             a_init = self.model.item_parameters["discrimination_matrix"][item, :]
             delta_init = self.model.item_parameters["intercept_vector"][item]
@@ -99,9 +103,11 @@ class m_step_ga_mml(m_step):
 
             def q_item(input): return pe_functions["q_item_list"][item](
                 a_item=input[0:len(input)-1], delta_item=input[len(input)-1])
-            new_a_item, new_delta_item = self.genetic_algorithm(
-                fitness_function=q_item, item=item, x0=x0)
+            new_item_parameters = self.genetic_algorithm(
+                fitness_function=q_item, x0=x0)
+            new_a_item = new_item_parameters[0:self.model.latent_dimension]
+            new_delta_item = new_item_parameters[len(x0)-1]
             new_A[item] = new_a_item
             new_delta[item] = new_delta_item
         return({"item_parameters": {"discrimination_matrix": new_A, "intercept_vector": new_delta},
-                "person_parameters": {"covariance": new_sigma}})
+                "person_parameters": {"covariance": new_sigma}}, 0.0)
