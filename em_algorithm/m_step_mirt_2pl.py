@@ -1,5 +1,5 @@
 from hashlib import new
-from em_algorithm.m_step import m_step
+from m_step import m_step
 import pandas as pd
 import numpy as np
 from scipy.optimize import minimize
@@ -20,11 +20,21 @@ class m_step_ga_mml(m_step):
         super().__init__()
         self.model = model
 
-    def genetic_algorithm(self, fitness_function, x0: np.array, constraints=None,
+    def genetic_algorithm(self, fitness_function, x0: np.array, constraint_function=lambda x: True,
                           population_size: int = 10, p_mutate: float = 0.5, p_crossover: float = 0.2):
         # Helping functions
-        def mutate(individual): return individual+multivariate_normal.rvs(
-            mean=np.zeros(len(individual)), cov=np.identity(len(individual)))
+        def mutate(individual):
+            valid_individual = False
+            while not valid_individual:
+                new_individual = individual+multivariate_normal.rvs(
+                    mean=np.zeros(len(individual)), cov=np.identity(len(individual)))
+                try:
+                    if not constraint_function(new_individual):
+                        continue
+                except Exception:
+                    continue
+                valid_individual = True
+            return(new_individual)
 
         def crossover(individual1, individual2):
             crossover_indices = random.choices(
@@ -86,7 +96,8 @@ class m_step_ga_mml(m_step):
             self.model.latent_dimension, k=1)]
         # x0 = np.reshape(
         #     self.model.person_parameters["covariance"], newshape=self.model.latent_dimension**2)
-        new_corr = self.genetic_algorithm(q_0, x0=x0)
+        new_corr = self.genetic_algorithm(
+            q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)))
         #new_sigma = minimize(func, x0=x0, method='BFGS').x
         new_sigma = self.model.corr_to_sigma(new_corr)
         # Find new values for A and delta
@@ -100,12 +111,19 @@ class m_step_ga_mml(m_step):
             delta_init = self.model.item_parameters["intercept_vector"][item]
             x0 = np.concatenate(
                 (a_init, np.expand_dims(delta_init, 0)), axis=0)
+            x0 = x0[x0 != 0]
 
-            def q_item(input): return pe_functions["q_item_list"][item](
-                a_item=input[0:len(input)-1], delta_item=input[len(input)-1])
+            def q_item(input):
+                delta_item = input[len(input)-1]
+                a_item = self.model.fill_zero_discriminations(
+                    input[0:len(input)-1], item=item)
+                return pe_functions["q_item_list"][item](
+                    a_item=a_item, delta_item=delta_item)
+
             new_item_parameters = self.genetic_algorithm(
-                fitness_function=q_item, x0=x0)
-            new_a_item = new_item_parameters[0:self.model.latent_dimension]
+                fitness_function=q_item, x0=x0, constraint_function=lambda arg: np.all(arg[0:len(arg)-1] > 0))
+            new_a_item = self.model.fill_zero_discriminations(
+                new_item_parameters[0:self.model.latent_dimension], item=item)
             new_delta_item = new_item_parameters[len(x0)-1]
             new_A[item] = new_a_item
             new_delta[item] = new_delta_item

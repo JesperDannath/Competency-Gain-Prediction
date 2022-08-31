@@ -47,7 +47,7 @@ class test_mirt_2pl(unittest.TestCase):
         x0 = np.concatenate(
             (a_init, np.expand_dims(delta_init, 0)), axis=0)
         new_parameters_dict = self.m_step_2pl.genetic_algorithm(
-            item=0, fitness_function=wrapped_fitness_function, x0=x0, population_size=10)
+            fitness_function=wrapped_fitness_function, x0=x0, population_size=10)
         print(new_parameters_dict)
 
     def test_step_ga_mirt_2pl(self):

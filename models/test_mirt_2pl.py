@@ -65,6 +65,51 @@ class test_mirt_2pl(unittest.TestCase):
             theta=theta2, response_vector=answer_vector)
         self.assertTrue(joint_density >= 0.0)
 
+    def test_q_matrix_functionality(self):
+        Q = np.array([[1, 0],
+                      [0, 1],
+                      [1, 0],
+                      [1, 1]], dtype=np.float)
+        A_positive = np.array([[0.4, 0],
+                               [0, 0.5],
+                               [0.1, 0],
+                               [1, 0.5]], dtype=np.float)
+        delta = np.array([1, 1, 1], dtype=np.float)
+        sigma = np.array([[1, 0, 0],
+                          [0, 1, 0],
+                          [0, 0, 1]])
+        mirt_2pl_model = mirt_2pl(
+            item_dimension=4, latent_dimension=3, A=A_positive, Q=Q, delta=delta, sigma=sigma)
+        self.assertTrue(mirt_2pl_model.check_discriminations())
+        A_negative = np.array([[0.4, 1],
+                               [0, 0.5],
+                               [0.1, 0],
+                               [1, 0.5]], dtype=np.float)
+        param_dict = {"item_parameters": {
+            "discrimination_matrix": A_negative}}
+        with self.assertRaises(Exception) as context:
+            mirt_2pl_model.set_parameters(param_dict)
+
+    def test_corr_to_sigma(self):
+        Q = np.array([[1, 0],
+                      [0, 1],
+                      [1, 0],
+                      [1, 1]], dtype=np.float)
+        A_positive = np.array([[0.4, 0],
+                               [0, 0.5],
+                               [0.1, 0],
+                               [1, 0.5]], dtype=np.float)
+        delta = np.array([1, 1, 1], dtype=np.float)
+        sigma = np.array([[1, 0, 0],
+                          [0, 1, 0],
+                          [0, 0, 1]])
+        mirt_2pl_model = mirt_2pl(
+            item_dimension=4, latent_dimension=3, A=A_positive, Q=Q, delta=delta, sigma=sigma)
+        corr = np.array([0.5, 0.1, 0.5])
+        new_sigma = mirt_2pl_model.corr_to_sigma(corr)
+        self.assertTrue(np.array_equal(new_sigma, np.array(
+            [[1, 0.5, 0.1], [0.5, 1, 0.5], [0.1, 0.5, 1]])))
+
 
 if __name__ == '__main__':
     unittest.main()

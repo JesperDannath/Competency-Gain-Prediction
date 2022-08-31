@@ -1,4 +1,4 @@
-from em_algorithm.e_step import e_step
+from e_step import e_step
 import numpy as np
 import pandas as pd
 import os

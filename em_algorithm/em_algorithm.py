@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import copy
 from sklearn.covariance import log_likelihood
 
 
@@ -34,7 +35,7 @@ class em_algorithm():
                               "person_parameters": self.model.person_parameters}
         while (not converged) and i <= max_iter:
             print("EM Iteration {0}".format(i+1))
-            last_step_parameters = current_parameters
+            last_step_parameters = copy.deepcopy(current_parameters)
             print("E-step")
             posterior_expectation = self.e_step.step(response_data=data)
             print("M-step")
@@ -43,7 +44,7 @@ class em_algorithm():
             self.model.set_parameters(current_parameters)
             parameter_diff = self.give_parameter_diff(
                 current_parameters=current_parameters, last_step_parameters=last_step_parameters)
-            if (parameter_diff <= 0.1) or (i >= max_iter):
+            if (parameter_diff <= 0.1) or (i >= max_iter-1):
                 converged = True
             # if (np.sum(np.array(parameter_diff) >= np.array(stop_criterion)) == 0) and i >= 10:
             #    converged = True
