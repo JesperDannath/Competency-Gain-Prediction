@@ -75,7 +75,7 @@ class e_step_ga_mml(e_step):
             return(mean)
 
         def q_item(item: int, a: np.array, item_delta: np.array, N=300):
-            def func(theta):
+            def func(theta): # TODO: make this function of array
                 icc_value = self.model.icc(theta=np.expand_dims(theta, axis=0), A=np.expand_dims(
                     a, axis=0), delta=np.array([item_delta]))  # TODO: check whether this is correct
                 r_0_theta = r_0(theta)

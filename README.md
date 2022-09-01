@@ -10,14 +10,13 @@ Die aktuelle Funktionalität kann über simulation_experiments.ipynb nachvollzog
 
 ## Optimization Roadmap
 
-- Add Q-Matrix (less parameters, Identification)
-- Add better Parameter Initialization (smaller search-space)
+- Add better Parameter Initialization (smaller search-space, Q*U-Methode wäre okay oder Q^T*Q)
 - Add Newton-Raphson Method for 
 - Add vectorization in Monte Carlo Integral calculation (better utilization of compute ressources)
-- Add multiprocessing for the m_step in q_item optimzation (possible J-fold performance increase)
+- cython für das Integral benutzen
+- Add multiprocessing for the m_step in q_item optimzation (possible J-fold performance increase) (eher nicht)
 
 ## Update Roadmap
 
-- Add Q-Matrix Constraint (Identification, Modelling)
 - Add MIRT-Gain Model
 - Add M-Step and E-Step for MIRT-Gain

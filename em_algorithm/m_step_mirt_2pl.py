@@ -20,14 +20,15 @@ class m_step_ga_mml(m_step):
         super().__init__()
         self.model = model
 
+    #TODO: Python package für ga ausprobieren: cmaes (https://github.com/CMA-ES/pycma)
     def genetic_algorithm(self, fitness_function, x0: np.array, constraint_function=lambda x: True,
-                          population_size: int = 10, p_mutate: float = 0.5, p_crossover: float = 0.2):
+                          population_size: int = 10, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=0.5):
         # Helping functions
         def mutate(individual):
             valid_individual = False
             while not valid_individual:
                 new_individual = individual+multivariate_normal.rvs(
-                    mean=np.zeros(len(individual)), cov=np.identity(len(individual)))
+                    mean=np.zeros(len(individual)), cov=mutation_variance*np.identity(len(individual)))
                 try:
                     if not constraint_function(new_individual):
                         continue
@@ -49,7 +50,7 @@ class m_step_ga_mml(m_step):
         population_base = population_base + \
             [x0 for i in range(0, population_size-len(population_base))]
         fitness = [fitness_function(individual)
-                   for individual in population_base]  # TODO: Multiprocessing ggf.
+                   for individual in population_base] 
         population_base = list(zip(fitness, population_base))
         population_base.sort(reverse=True)
         converged = False
@@ -69,7 +70,7 @@ class m_step_ga_mml(m_step):
                     population[i] = crossover(population[i], partner[0])
             # Evaluation
             fitness = [fitness_function(individual)
-                       for individual in population]  # TODO: Multiprocessing ggf.
+                       for individual in population]  
             fitness.sort(reverse=True)
             highest_fitness = fitness[0]
             print("Highest Current Fitness:")
@@ -85,8 +86,8 @@ class m_step_ga_mml(m_step):
     def step(self, pe_functions: dict):
         # Find the new value for Sigma
         print("Maximize Q-0")
-
         # The only parameters we need to optimise are the correlations
+        #TODO: Matrix X^tX = sigma benutzen um p.s.d zu enforcen 
         def q_0(corr_vector):
             sigma = self.model.corr_to_sigma(corr_vector)
             return pe_functions["q_0"](np.reshape(
@@ -94,8 +95,6 @@ class m_step_ga_mml(m_step):
                     self.model.latent_dimension, self.model.latent_dimension)))
         x0 = self.model.person_parameters["covariance"][np.triu_indices(
             self.model.latent_dimension, k=1)]
-        # x0 = np.reshape(
-        #     self.model.person_parameters["covariance"], newshape=self.model.latent_dimension**2)
         new_corr = self.genetic_algorithm(
             q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)))
         #new_sigma = minimize(func, x0=x0, method='BFGS').x
@@ -129,3 +128,4 @@ class m_step_ga_mml(m_step):
             new_delta[item] = new_delta_item
         return({"item_parameters": {"discrimination_matrix": new_A, "intercept_vector": new_delta},
                 "person_parameters": {"covariance": new_sigma}}, 0.0)
+
