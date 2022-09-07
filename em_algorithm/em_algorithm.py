@@ -29,6 +29,7 @@ class em_algorithm():
         """
         converged = False
         i = 0
+        self.e_step.set_incomplete_data(data)
         # Method described in Section 2. of Zhang (2005)
         initial_parameters = None
         current_parameters = {"item_parameters": self.model.item_parameters,
@@ -42,15 +43,18 @@ class em_algorithm():
             current_parameters, log_likelihood = self.m_step.step(
                 pe_functions=posterior_expectation)
             self.model.set_parameters(current_parameters)
+            marginal_log_likelihood = self.model.marginal_response_loglikelihood(
+                data.to_numpy())
             parameter_diff = self.give_parameter_diff(
                 current_parameters=current_parameters, last_step_parameters=last_step_parameters)
-            if (parameter_diff <= 0.1) or (i >= max_iter-1):
+            if (parameter_diff <= 0.2) or (i >= max_iter-1):
                 converged = True
             # if (np.sum(np.array(parameter_diff) >= np.array(stop_criterion)) == 0) and i >= 10:
             #    converged = True
             i = i+1
-            print("Step: {0}: current parameter_diff: {1}, current data likelihood: {2}".format(
-                i, parameter_diff, log_likelihood))
+            print("Step: {0}: current parameter_diff: {1}, current marginal loglikelihood: {2}".format(
+                i, parameter_diff,  marginal_log_likelihood))
+            self.n_steps = i+1
 
     def give_parameter_diff(self, current_parameters, last_step_parameters):
         current_A = current_parameters["item_parameters"]["discrimination_matrix"]

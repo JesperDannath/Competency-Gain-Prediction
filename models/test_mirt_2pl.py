@@ -59,11 +59,17 @@ class test_mirt_2pl(unittest.TestCase):
                                        np.array([[0.88, 0.88, 0.88]])))
 
     def test_joint_competency_answer_density(self):
-        theta2 = np.array([1, 1, 1])
-        answer_vector = np.array([1, 0, 1])
+        theta2 = np.array([[1, 1, 0.5]])
+        answer_vector = np.array([[1, 0, 1]])
         joint_density = self.mirt_2pl_2d.joint_competency_answer_density(
             theta=theta2, response_vector=answer_vector)
         self.assertTrue(joint_density >= 0.0)
+        # Test Multiple competentcy-vectors as input
+        answer_matrix = np.array([[1, 0, 1], [1, 1, 1], [0, 0, 1], [0, 0, 0]])
+        theta_matrix = np.array([[1, 1, 1], [1, 0, 3]])
+        joint_density = self.mirt_2pl_2d.joint_competency_answer_density(
+            theta=theta_matrix, response_vector=answer_matrix)
+        self.assertTrue(len(joint_density) == 2)
 
     def test_q_matrix_functionality(self):
         Q = np.array([[1, 0],

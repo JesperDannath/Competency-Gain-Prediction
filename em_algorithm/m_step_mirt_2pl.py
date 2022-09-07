@@ -20,9 +20,9 @@ class m_step_ga_mml(m_step):
         super().__init__()
         self.model = model
 
-    #TODO: Python package für ga ausprobieren: cmaes (https://github.com/CMA-ES/pycma)
+    # TODO: Python package für ga ausprobieren: cmaes (https://github.com/CMA-ES/pycma)
     def genetic_algorithm(self, fitness_function, x0: np.array, constraint_function=lambda x: True,
-                          population_size: int = 10, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=0.5):
+                          population_size: int = 30, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=0.1):
         # Helping functions
         def mutate(individual):
             valid_individual = False
@@ -50,7 +50,7 @@ class m_step_ga_mml(m_step):
         population_base = population_base + \
             [x0 for i in range(0, population_size-len(population_base))]
         fitness = [fitness_function(individual)
-                   for individual in population_base] 
+                   for individual in population_base]
         population_base = list(zip(fitness, population_base))
         population_base.sort(reverse=True)
         converged = False
@@ -70,16 +70,16 @@ class m_step_ga_mml(m_step):
                     population[i] = crossover(population[i], partner[0])
             # Evaluation
             fitness = [fitness_function(individual)
-                       for individual in population]  
+                       for individual in population]
             fitness.sort(reverse=True)
             highest_fitness = fitness[0]
-            print("Highest Current Fitness:")
-            print(max(highest_fitness, population_base[0][0]))
+            #print("Highest Current Fitness:")
+            #print(max(highest_fitness, population_base[0][0]))
             # TODO: I could decrease mutation variance in case of lower fitness
             if (abs(highest_fitness - population_base[0][0]) < 0.001) or (highest_fitness < population_base[0][0]):
                 converged = True
             population_base = population_base + list(zip(fitness, population))
-            print("Length of Population = {0}".format(len(population_base)))
+            #print("Length of Population = {0}".format(len(population_base)))
             population_base.sort(reverse=True)
         return(population_base[0][1])
 
@@ -87,7 +87,9 @@ class m_step_ga_mml(m_step):
         # Find the new value for Sigma
         print("Maximize Q-0")
         # The only parameters we need to optimise are the correlations
-        #TODO: Matrix X^tX = sigma benutzen um p.s.d zu enforcen 
+        # TODO: Matrix X^tX = sigma benutzen um p.s.d zu enforcen
+        log_likelihood = 0.0
+
         def q_0(corr_vector):
             sigma = self.model.corr_to_sigma(corr_vector)
             return pe_functions["q_0"](np.reshape(
@@ -104,6 +106,7 @@ class m_step_ga_mml(m_step):
             shape=self.model.item_parameters["discrimination_matrix"].shape)
         new_delta = np.empty(
             shape=self.model.item_parameters["intercept_vector"].shape)
+        log_likelihood += q_0(new_corr)
         print("Maximize the Q_i's")
         for item in range(0, self.model.item_dimension):
             a_init = self.model.item_parameters["discrimination_matrix"][item, :]
@@ -121,11 +124,11 @@ class m_step_ga_mml(m_step):
 
             new_item_parameters = self.genetic_algorithm(
                 fitness_function=q_item, x0=x0, constraint_function=lambda arg: np.all(arg[0:len(arg)-1] > 0))
+            log_likelihood += q_item(new_item_parameters)
             new_a_item = self.model.fill_zero_discriminations(
                 new_item_parameters[0:self.model.latent_dimension], item=item)
             new_delta_item = new_item_parameters[len(x0)-1]
             new_A[item] = new_a_item
             new_delta[item] = new_delta_item
         return({"item_parameters": {"discrimination_matrix": new_A, "intercept_vector": new_delta},
-                "person_parameters": {"covariance": new_sigma}}, 0.0)
-
+                "person_parameters": {"covariance": new_sigma}}, log_likelihood)

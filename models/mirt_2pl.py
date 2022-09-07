@@ -66,28 +66,56 @@ class mirt_2pl(irt_model):
         return(multivariate_normal.pdf(x=theta, mean=np.zeros(
             self.latent_dimension), cov=sigma))
 
-    def sample_competency(self):
-        return(multivariate_normal.rvs(mean=np.zeros(
+    def sample_competency(self, sample_size=1):
+        return(multivariate_normal.rvs(size=sample_size, mean=np.zeros(
             self.latent_dimension), cov=self.person_parameters["covariance"]))
 
-    def response_vector_probability(self, theta, response_vector: np.array, A=np.empty(0),
+    # def response_vector_probability(self, theta, response_vector: np.array, A=np.empty(0),
+    #                                 delta=np.empty(0)) -> np.array:
+    #     if A.size == 0:
+    #         A = self.item_parameters["discrimination_matrix"]
+    #     if delta.size == 0:
+    #         delta = self.item_parameters["intercept_vector"]
+    #     correct_response_probabilities = self.icc(
+    #         theta, A, delta)
+    #     probability_vector = np.add(np.multiply(correct_response_probabilities, response_vector),
+    #                                 np.multiply(np.subtract(1, correct_response_probabilities), np.subtract(1, response_vector)))
+    #     probability = np.prod(probability_vector, axis=1)
+    #     return(probability)
+
+    def response_matrix_probability(self, theta, response_matrix: np.array, A=np.empty(0),
                                     delta=np.empty(0)) -> np.array:
+        """Calculate a matrix of response-vector probabilities. One entry in the resulting matrix
+        reflects the response vector probability for response-vector i for a person with competency j
+
+        Args:
+            theta (np.array): competency matrix of shape (competency_sample_size, latent_dimension)
+            response_matrix (np.array): response-matrix of shape (number_response_shapes, item_dimension)
+            A (_type_, optional): _description_. Defaults to np.empty(0).
+            delta (_type_, optional): _description_. Defaults to np.empty(0).
+
+        Returns:
+            np.array: _description_
+        """
         if A.size == 0:
             A = self.item_parameters["discrimination_matrix"]
         if delta.size == 0:
             delta = self.item_parameters["intercept_vector"]
         correct_response_probabilities = self.icc(
-            np.expand_dims(theta, axis=0), A, delta)[0]
-        probability_vector = np.add(np.multiply(correct_response_probabilities, response_vector),
-                                    np.multiply(np.subtract(1, correct_response_probabilities), np.subtract(1, response_vector)))
-        probability = np.prod(probability_vector)
+            theta, A, delta)
+        # We want to apply each response vector to each competency-induced correct-response-probability
+        correct_response_probabilities = np.expand_dims(
+            correct_response_probabilities, axis=1)
+        probability_vector = np.add(np.multiply(correct_response_probabilities, response_matrix),
+                                    np.multiply(np.subtract(1, correct_response_probabilities), np.subtract(1, response_matrix)))
+        probability = np.prod(probability_vector, axis=2)
         return(probability)
 
     def joint_competency_answer_density(self, theta, response_vector: np.array, A=np.empty(0),
                                         delta=np.empty(0), sigma=np.empty(0)) -> np.array:
         """Calculate the joint probability-density of a certain response-vector and a latent-trait vector
         Args:
-            theta (np.array): array of shape (latent_dimension)
+            theta (np.array): array of shape (latent_dimension) or matrix of shape (sample_size, latent_dimension)
             response_vector (np.array): array of shape (item_dimension)
             A (np.array): Matrix of item discriminations with shape (item_dimension, latent_dimension)
             delta (np.array): Array of item-intercepts with shape (item_dimension)
@@ -101,10 +129,13 @@ class mirt_2pl(irt_model):
             A = self.item_parameters["discrimination_matrix"]
         if delta.size == 0:
             delta = self.item_parameters["intercept_vector"]
-        response_probability = self.response_vector_probability(
+        response_probability = self.response_matrix_probability(
             theta, response_vector, A, delta)
         marginal_competency_density = multivariate_normal.pdf(x=theta, mean=np.zeros(
             self.latent_dimension), cov=sigma)
+        if len(marginal_competency_density.shape) != 0:
+            marginal_competency_density = np.expand_dims(
+                marginal_competency_density, axis=1)
         joint_density = np.multiply(
             response_probability, marginal_competency_density)
         return(joint_density)
@@ -138,3 +169,12 @@ class mirt_2pl(irt_model):
         a_item = np.zeros(mask.shape)
         np.place(a_item, mask=mask, vals=discriminations)
         return(a_item)
+
+    def marginal_response_loglikelihood(self, response_data, N=1000):
+        theta = self.sample_competency(N)
+        response_matrix_prob = self.response_matrix_probability(
+            theta=theta, response_matrix=response_data)
+        marginal_vector_probabilities = np.log(
+            np.mean(response_matrix_prob, axis=0))
+        response_loglikelihood = np.sum(marginal_vector_probabilities)
+        return(response_loglikelihood)
