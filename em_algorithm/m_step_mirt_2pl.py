@@ -22,7 +22,7 @@ class m_step_ga_mml(m_step):
 
     # TODO: Python package für ga ausprobieren: cmaes (https://github.com/CMA-ES/pycma)
     def genetic_algorithm(self, fitness_function, x0: np.array, constraint_function=lambda x: True,
-                          population_size: int = 30, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=0.1):
+                          population_size: int = 40, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=0.3):
         # Helping functions
         def mutate(individual):
             valid_individual = False
@@ -71,8 +71,8 @@ class m_step_ga_mml(m_step):
             # Evaluation
             fitness = [fitness_function(individual)
                        for individual in population]
-            fitness.sort(reverse=True)
-            highest_fitness = fitness[0]
+            # fitness.sort(reverse=True)
+            highest_fitness = max(fitness)
             #print("Highest Current Fitness:")
             #print(max(highest_fitness, population_base[0][0]))
             # TODO: I could decrease mutation variance in case of lower fitness

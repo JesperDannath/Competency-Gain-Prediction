@@ -34,26 +34,32 @@ class em_algorithm():
         initial_parameters = None
         current_parameters = {"item_parameters": self.model.item_parameters,
                               "person_parameters": self.model.person_parameters}
+        marginal_loglikelihood = self.model.marginal_response_loglikelihood(
+            data.to_numpy())
         while (not converged) and i <= max_iter:
             print("EM Iteration {0}".format(i+1))
             last_step_parameters = copy.deepcopy(current_parameters)
+            last_step_marginal_loglikelihood = marginal_loglikelihood.copy()
             print("E-step")
             posterior_expectation = self.e_step.step(response_data=data)
             print("M-step")
             current_parameters, log_likelihood = self.m_step.step(
                 pe_functions=posterior_expectation)
             self.model.set_parameters(current_parameters)
-            marginal_log_likelihood = self.model.marginal_response_loglikelihood(
+            marginal_loglikelihood = self.model.marginal_response_loglikelihood(
                 data.to_numpy())
+            marginal_loglikelihood_diff = abs(
+                marginal_loglikelihood - last_step_marginal_loglikelihood)
             parameter_diff = self.give_parameter_diff(
                 current_parameters=current_parameters, last_step_parameters=last_step_parameters)
-            if (parameter_diff <= 0.2) or (i >= max_iter-1):
+            # if (parameter_diff <= 0.2) or (i >= max_iter-1):
+            if (marginal_loglikelihood_diff <= 0.2) or (i >= max_iter-1):
                 converged = True
             # if (np.sum(np.array(parameter_diff) >= np.array(stop_criterion)) == 0) and i >= 10:
             #    converged = True
             i = i+1
             print("Step: {0}: current parameter_diff: {1}, current marginal loglikelihood: {2}".format(
-                i, parameter_diff,  marginal_log_likelihood))
+                i, parameter_diff,  marginal_loglikelihood))
             self.n_steps = i+1
 
     def give_parameter_diff(self, current_parameters, last_step_parameters):
