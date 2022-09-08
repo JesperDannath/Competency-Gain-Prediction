@@ -40,8 +40,10 @@ class m_step_ga_mml(m_step):
         def crossover(individual1, individual2):
             crossover_indices = random.choices(
                 population=list(range(0, len(individual1))), k=int(len(individual1)/2))
-            new_individual = [individual2[i] if i in crossover_indices else individual1[i]
-                              for i in range(0, len(individual1))]
+            new_individual = np.array([individual2[i] if i in crossover_indices else individual1[i]
+                                       for i in range(0, len(individual1))])
+            # TODO: Better hanle constraint case
+            constraint_function(new_individual)
             return(new_individual)
 
         # Initialization with last M-Step
@@ -52,7 +54,8 @@ class m_step_ga_mml(m_step):
         fitness = [fitness_function(individual)
                    for individual in population_base]
         population_base = list(zip(fitness, population_base))
-        population_base.sort(reverse=True)
+        population_base.sort(
+            reverse=True, key=lambda individual: individual[0])
         converged = False
         while not converged:
             # Selection
@@ -80,7 +83,8 @@ class m_step_ga_mml(m_step):
                 converged = True
             population_base = population_base + list(zip(fitness, population))
             #print("Length of Population = {0}".format(len(population_base)))
-            population_base.sort(reverse=True)
+            population_base.sort(
+                reverse=True, key=lambda individual: individual[0])
         return(population_base[0][1])
 
     def step(self, pe_functions: dict):
@@ -98,7 +102,7 @@ class m_step_ga_mml(m_step):
         x0 = self.model.person_parameters["covariance"][np.triu_indices(
             self.model.latent_dimension, k=1)]
         new_corr = self.genetic_algorithm(
-            q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)))
+            q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
         #new_sigma = minimize(func, x0=x0, method='BFGS').x
         new_sigma = self.model.corr_to_sigma(new_corr)
         # Find new values for A and delta
