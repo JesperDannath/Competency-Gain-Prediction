@@ -18,7 +18,7 @@ class response_simulation():
         self.item_dimension = early_item_params["item_dimension"]
         self.latent_dimension = early_item_params["latent_dimension"]
         self.early_model = mirt_2pl(self.item_dimension, self.latent_dimension,
-                                    A=early_item_params["discrimination_matrix"], delta=early_item_params["intercept_vector"], sigma=None)
+                                    A=early_item_params["discrimination_matrix"], delta=early_item_params["intercept_vector"])
 
     def sample(self, sample_size):
         sample = {}

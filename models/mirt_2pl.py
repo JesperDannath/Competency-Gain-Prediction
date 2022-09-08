@@ -1,11 +1,12 @@
 from irt_model import irt_model
 import numpy as np
+import pandas as pd
 from scipy.stats import multivariate_normal
 
 
 class mirt_2pl(irt_model):
 
-    def __init__(self, item_dimension: int, latent_dimension: int, A=np.empty(0), Q=np.empty(0), delta=None, sigma=None) -> None:
+    def __init__(self, item_dimension: int, latent_dimension: int, A=np.empty(0), Q=np.empty(0), delta=np.empty(0), sigma=np.empty(0)) -> None:
         """
         Args:
             item_dimension (int): Number of items in test
@@ -15,12 +16,37 @@ class mirt_2pl(irt_model):
             Q (np.array): Matrix of Constraints on A of the form a_{i,j} == 0
         """
         super().__init__(item_dimension, latent_dimension)
+        self.initialize_parameters(A, Q, delta, sigma)
+
+    def initialize_parameters(self, A, Q, delta, sigma):
         if Q.size == 0:
-            Q = np.ones((item_dimension, latent_dimension))
+            Q = np.ones((self.item_dimension, self.latent_dimension))
+        if A.size == 0:
+            A = Q.copy()
+        if delta.size == 0:
+            delta = np.ones(self.item_dimension)
+        if sigma.size == 0:
+            sigma = np.identity(self.latent_dimension)
         self.check_discriminations(A, Q)
         self.item_parameters = {
             "discrimination_matrix": A, "intercept_vector": delta, "q_matrix": Q}
         self.person_parameters = {"covariance": sigma}
+
+    def initialize_from_responses(self, response_data: pd.DataFrame):
+        A = np.ones((self.item_dimension, self.latent_dimension))
+        self.item_parameters["q_matrix"] = A
+        # delta is initialized with the inverse logistic function
+        item_response_mean = np.mean(response_data, axis=0)
+        delta = np.log(np.divide(item_response_mean, 1 -
+                                 item_response_mean)).to_numpy()
+        n = self.latent_dimension-1
+        sigma = self.corr_to_sigma(
+            corr=0.5*np.zeros(int((n*(n+1))/2)))
+        item_parameters = {
+            "discrimination_matrix": A, "intercept_vector": delta}
+        person_parameters = {"covariance": sigma}
+        self.set_parameters(
+            {"item_parameters": item_parameters, "person_parameters": person_parameters})
 
     def check_discriminations(self, A=np.empty(0), Q=np.empty(0)) -> bool:
         if A.size == 0:
@@ -146,21 +172,22 @@ class mirt_2pl(irt_model):
             self.check_discriminations()
         if "person_parameters" in parameters.keys():
             self.person_parameters.update(parameters["person_parameters"])
+            self.check_sigma()
 
     def corr_to_sigma(self, corr):
         """Creates a Covariance Matrix sigma from an array of Correlations
         Args:
             corr (np.array): array of latant trait correlations. Entrys are the upper triangular Matrix
-            of sigma from left to right and top to bottom. 
+            of sigma from left to right and top to bottom.
         """
         new_sigma = self.person_parameters["covariance"].copy().astype(
             np.float64)
-        #new_sigma[np.triu_indices(self.latent_dimension, k=1)] = corr
+        # new_sigma[np.triu_indices(self.latent_dimension, k=1)] = corr
         np.place(new_sigma,
                  mask=np.triu(np.ones(self.latent_dimension), k=1).astype(np.bool), vals=corr)
         np.place(new_sigma,
                  mask=np.tril(np.ones(self.latent_dimension), k=-1).astype(np.bool), vals=corr)
-        #new_sigma[np.tril_indices(self.latent_dimension, k=-1)] = corr
+        # new_sigma[np.tril_indices(self.latent_dimension, k=-1)] = corr
         self.check_sigma(new_sigma)
         return(new_sigma)
 
