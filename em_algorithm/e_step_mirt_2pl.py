@@ -16,18 +16,27 @@ class e_step_ga_mml(e_step):
         super().__init__(incomplete_data=incomplete_data)
         self.model = model
 
-    # TODO: Ensure that model uses the current parameters
+    # # TODO: Make this more efficient using multiple response patterns as input
+    # def conditional_ability_normalising_constant(self, response_pattern, N=1000):
+    #     # function
+    #     def response_prob(theta): return self.model.response_matrix_probability(
+    #         theta=np.expand_dims(theta, axis=0), response_matrix=np.expand_dims(response_pattern, axis=0))
+    #     # Monte Carlo Integration
+    #     mean = 0
+    #     for i in range(0, N):
+    #         theta = self.model.sample_competency()
+    #         mean += response_prob(theta)/N
+    #     return(mean)
+
     # TODO: Make this more efficient using multiple response patterns as input
-    def conditional_ability_normalising_constant(self, response_pattern, N=1000):
+    def conditional_ability_normalising_constant(self, response_data, N=1000):
         # function
         def response_prob(theta): return self.model.response_matrix_probability(
-            theta=np.expand_dims(theta, axis=0), response_matrix=np.expand_dims(response_pattern, axis=0))
-        # Monte Carlo Integration
-        mean = 0
-        for i in range(0, N):
-            theta = self.model.sample_competency()
-            mean += response_prob(theta)/N
-        return(mean)
+            theta=theta, response_matrix=response_data)
+        # Monte Carlo integration
+        theta = self.model.sample_competency(sample_size=N)
+        result_matrix = response_prob(theta)
+        return(np.mean(result_matrix, axis=0))
 
     def step(self, response_data: pd.DataFrame, current_item_parameters: dict = {}, current_person_parameters: dict = {}) -> dict:
         """E-Step for a classic MIRT Model based on Bock & Aitkin (1981) as well as Zhang (2005).
@@ -40,10 +49,11 @@ class e_step_ga_mml(e_step):
         # Calculate Expected Values
         M = response_data.shape[0]
         J = response_data.shape[1]
-        normalising_constant_array = np.empty(shape=M)
-        for i, response_pattern in enumerate(response_data.to_numpy()):
-            normalising_constant_array[i] = self.conditional_ability_normalising_constant(
-                response_pattern)
+        normalising_constant_array = self.conditional_ability_normalising_constant(
+            response_data.to_numpy())  # np.empty(shape=M)
+        # for i, response_pattern in enumerate(response_data.to_numpy()):
+        #     normalising_constant_array[i] = self.conditional_ability_normalising_constant(
+        #         response_pattern)
 
         def r_0(theta: np.array):
             numerator = self.model.response_matrix_probability(
@@ -61,19 +71,32 @@ class e_step_ga_mml(e_step):
             # TODO: Monte Carlo
             return(np.sum(np.divide(numerator, denominator), axis=1))
 
+        # def q_0(sigma, N=400):
+        #     def func(theta):
+        #         factor = np.log(self.model.latent_density(theta, sigma=sigma))
+        #         numerator = np.array(self.model.response_matrix_probability(
+        #             theta=np.expand_dims(theta, axis=0), response_matrix=response_data.to_numpy()))
+        #         denominator = normalising_constant_array
+        #         sum = np.sum(np.divide(numerator, denominator))
+        #         return(np.multiply(factor, sum))
+        #     mean = 0
+        #     for i in range(0, N):
+        #         theta = self.model.sample_competency()
+        #         mean += func(theta)/N
+        #     return(mean)
+
         def q_0(sigma, N=400):
             def func(theta):
                 factor = np.log(self.model.latent_density(theta, sigma=sigma))
                 numerator = np.array(self.model.response_matrix_probability(
-                    theta=np.expand_dims(theta, axis=0), response_matrix=response_data.to_numpy()))
+                    theta=theta, response_matrix=response_data.to_numpy()))
                 denominator = normalising_constant_array
-                sum = np.sum(np.divide(numerator, denominator))
+                sum = np.sum(np.divide(numerator, denominator), axis=1)
                 return(np.multiply(factor, sum))
-            mean = 0
-            for i in range(0, N):
-                theta = self.model.sample_competency()
-                mean += func(theta)/N
-            return(mean)
+            # Monte Carlo integration
+            theta = self.model.sample_competency(sample_size=N)
+            result_vector = func(theta)
+            return(np.mean(result_vector))
 
         # def q_item(item: int, a: np.array, item_delta: np.array, N=300):
         #     def func(theta):  # TODO: make this function of array

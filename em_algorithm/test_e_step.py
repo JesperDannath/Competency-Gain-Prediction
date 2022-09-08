@@ -40,9 +40,9 @@ class test_mirt_2pl(unittest.TestCase):
             model=self.mirt_2pl_2d, incomplete_data=self.incomplete_data)
 
     def test_conditional_ability_normalizing_constant(self):
-        response_pattern = np.array([1, 1, 0])
+        response_pattern = np.array([[1, 1, 0]])
         normalizing_constant = self.e_step_2pl.conditional_ability_normalising_constant(
-            response_pattern=response_pattern)
+            response_data=response_pattern)
         # nquad lösung für [-10,10]: 0.1472
         # Monte Carlo Lösung: 0.1486
         self.assertTrue(normalizing_constant != 0.0)
