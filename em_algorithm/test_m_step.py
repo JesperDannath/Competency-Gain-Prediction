@@ -37,6 +37,18 @@ class test_mirt_2pl(unittest.TestCase):
         self.m_step_2pl = m_step_ga_mml(model=self.mirt_2pl_2d)
 
     def test_genetic_algorithm(self):
+        print("test genetic algorithm")
+        # Test with quadratic function
+
+        def q_func(input):
+            return(-1*(input[0]**2 + input[1]**2))
+        x0 = np.array([10, -10])
+        result = self.m_step_2pl.genetic_algorithm(
+            fitness_function=q_func, x0=x0, population_size=100)
+        diff = np.sqrt(np.sum(np.square(result) -
+                              np.square(np.array([0.0, 0.0]))))
+        self.assertTrue(diff < 0.3)
+        # Test item fitness function
         fitness_function = self.result_function_dict["q_item_list"][0]
 
         def wrapped_fitness_function(input):

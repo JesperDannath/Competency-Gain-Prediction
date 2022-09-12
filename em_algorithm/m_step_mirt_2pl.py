@@ -8,6 +8,7 @@ from scipy.stats import bernoulli
 import random
 import sys
 import os
+import cma
 sys.path.append(os.path.realpath("./models"))
 # Custom modules, import violates pep8, so we have to declare an exeption
 if True:  # noqa: E402
@@ -22,7 +23,7 @@ class m_step_ga_mml(m_step):
 
     # TODO: Python package für ga ausprobieren: cmaes (https://github.com/CMA-ES/pycma)
     def genetic_algorithm(self, fitness_function, x0: np.array, constraint_function=lambda x: True,
-                          population_size: int = 40, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=0.3):
+                          population_size: int = 40, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=1):
         # Helping functions
         def mutate(individual):
             valid_individual = False
@@ -57,11 +58,14 @@ class m_step_ga_mml(m_step):
         population_base.sort(
             reverse=True, key=lambda individual: individual[0])
         converged = False
+        candidate_population = False
         while not converged:
             # Selection
             # (Len-rank)/gaussian_sum
-            population = random.choices(population=population_base, weights=list(
-                range(len(population_base)+1, 1, -1)), k=population_size)
+            # population = random.choices(population=population_base, weights=list(
+            #     range(len(population_base)+1, 1, -1)), k=population_size)
+            population = random.choices(population=population_base, weights=np.exp(
+                np.arange(len(population_base), 0, -1)), k=population_size)
             population = [individual[1] for individual in population]
             # Breeding
             for i in range(0, len(population)):
@@ -75,16 +79,23 @@ class m_step_ga_mml(m_step):
             fitness = [fitness_function(individual)
                        for individual in population]
             # fitness.sort(reverse=True)
-            highest_fitness = max(fitness)
-            #print("Highest Current Fitness:")
-            #print(max(highest_fitness, population_base[0][0]))
-            # TODO: I could decrease mutation variance in case of lower fitness
-            if (abs(highest_fitness - population_base[0][0]) < 0.001) or (highest_fitness < population_base[0][0]):
-                converged = True
+            current_highest_fitness = max(fitness)
+            before_highest_fitness = population_base[0][0]
             population_base = population_base + list(zip(fitness, population))
             #print("Length of Population = {0}".format(len(population_base)))
             population_base.sort(
                 reverse=True, key=lambda individual: individual[0])
+            #print("Highest Current Fitness:")
+            # TODO: I could decrease mutation variance in case of lower fitness
+            if (abs(current_highest_fitness - before_highest_fitness) < 0.001) or (current_highest_fitness < before_highest_fitness):
+                if candidate_population:
+                    converged = True
+                else:
+                    candidate_population = True
+                    # truncate population
+                    population_base = population_base[0:population_size]
+            else:
+                candidate_population = False
         return(population_base[0][1])
 
     def step(self, pe_functions: dict):
@@ -101,19 +112,28 @@ class m_step_ga_mml(m_step):
                     self.model.latent_dimension, self.model.latent_dimension)))
         x0 = self.model.person_parameters["covariance"][np.triu_indices(
             self.model.latent_dimension, k=1)]
-        new_corr = self.genetic_algorithm(
-            q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
-        #new_sigma = minimize(func, x0=x0, method='BFGS').x
-        new_sigma = self.model.corr_to_sigma(new_corr)
+        if len(x0) > 0:
+            # new_corr = self.genetic_algorithm(
+            #    q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
+            if len(x0) > 1:
+                new_corr = cma.CMAEvolutionStrategy(
+                    x0=x0, sigma0=0.5).optimize(lambda x: -1*q_0(x), maxfun=1000, n_jobs=0).result.xfavorite
+            else:
+                new_corr = self.genetic_algorithm(
+                    q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
+            #new_sigma = minimize(func, x0=x0, method='BFGS').x
+            new_sigma = self.model.corr_to_sigma(new_corr)
+            log_likelihood += q_0(new_corr)
+        else:
+            new_sigma = self.model.person_parameters["covariance"]
         # Find new values for A and delta
         new_A = np.empty(
             shape=self.model.item_parameters["discrimination_matrix"].shape)
         new_delta = np.empty(
             shape=self.model.item_parameters["intercept_vector"].shape)
-        log_likelihood += q_0(new_corr)
         print("Maximize the Q_i's")
         for item in range(0, self.model.item_dimension):
-            a_init = self.model.item_parameters["discrimination_matrix"][item, :]
+            a_init = self.model.item_parameters["discrimination_matrix"][item]
             delta_init = self.model.item_parameters["intercept_vector"][item]
             x0 = np.concatenate(
                 (a_init, np.expand_dims(delta_init, 0)), axis=0)
@@ -126,8 +146,11 @@ class m_step_ga_mml(m_step):
                 return pe_functions["q_item_list"][item](
                     a_item=a_item, delta_item=delta_item)
 
-            new_item_parameters = self.genetic_algorithm(
-                fitness_function=q_item, x0=x0, constraint_function=lambda arg: np.all(arg[0:len(arg)-1] > 0))
+            # new_item_parameters = self.genetic_algorithm(
+            #     fitness_function=q_item, x0=x0, constraint_function=lambda arg: np.all(arg[0:len(arg)-1] > 0))
+            new_item_parameters = cma.CMAEvolutionStrategy(
+                x0=x0, sigma0=0.5).optimize(lambda x: -1*q_item(x), maxfun=1000, n_jobs=0).result.xfavorite
+            # sys.stdout.close()
             log_likelihood += q_item(new_item_parameters)
             new_a_item = self.model.fill_zero_discriminations(
                 new_item_parameters[0:self.model.latent_dimension], item=item)

@@ -30,8 +30,6 @@ class em_algorithm():
         converged = False
         i = 0
         self.e_step.set_incomplete_data(data)
-        # Method described in Section 2. of Zhang (2005)
-        initial_parameters = None
         current_parameters = {"item_parameters": self.model.item_parameters,
                               "person_parameters": self.model.person_parameters}
         marginal_loglikelihood = self.model.marginal_response_loglikelihood(
@@ -53,6 +51,12 @@ class em_algorithm():
             parameter_diff = self.give_parameter_diff(
                 current_parameters=current_parameters, last_step_parameters=last_step_parameters)
             # if (parameter_diff <= 0.2) or (i >= max_iter-1):
+            # Enforce that the Likelihood increases
+            # if marginal_loglikelihood < last_step_marginal_loglikelihood:
+            #    print("Degenerated step!")
+            #    self.model.set_parameters(last_step_parameters)
+            #    current_parameters = copy.deepcopy(last_step_parameters)
+            #    marginal_loglikelihood = last_step_marginal_loglikelihood.copy()
             if (marginal_loglikelihood_diff <= 0.2) or (i >= max_iter-1):
                 converged = True
             # if (np.sum(np.array(parameter_diff) >= np.array(stop_criterion)) == 0) and i >= 10:

@@ -115,13 +115,13 @@ class e_step_ga_mml(e_step):
         #     return(mean)
 
         def q_item(item: int, a: np.array, item_delta: np.array, N=400):
-            def func(theta):  # TODO: make this function of array
+            def func(theta):
                 icc_values = self.model.icc(theta=theta, A=np.expand_dims(
-                    a, axis=0), delta=np.array([item_delta])).transpose()[0]  # TODO: check whether this is correct
+                    a, axis=0), delta=np.array([item_delta])).transpose()[0]
                 r_0_theta = r_0(theta)
                 r_item_theta = r_item(item, theta)
                 log_likelihood_item = np.multiply(np.log(
-                    icc_values), r_0_theta) + np.multiply(np.subtract(r_0_theta, r_item_theta), np.log(1-icc_values))
+                    icc_values), r_item_theta) + np.multiply(np.log(1-icc_values), np.subtract(r_0_theta, r_item_theta))
                 return(log_likelihood_item)
             # Monte Carlo integration
             theta = self.model.sample_competency(sample_size=N)

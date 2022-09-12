@@ -39,20 +39,49 @@ class response_simulation():
         self.early_model.set_parameters(
             {"item_parameters": {"q_matrix": early_Q, "discrimination_matrix": early_Q}})
 
+    # def initialize_random_item_parameters(self, Q=np.empty(0)):
+    #     if Q.size == 0:
+    #         Q = self.early_model.item_parameters["q_matrix"]
+    #     A = np.empty((self.item_dimension, self.latent_dimension))
+    #     for i in range(0, self.item_dimension):
+    #         A[i] = np.exp(multivariate_normal(mean=np.zeros(
+    #             self.latent_dimension), cov=np.identity(self.latent_dimension)).rvs())
+    #     A = np.multiply(A, Q)
+    #     delta = multivariate_normal(mean=np.zeros(
+    #         self.item_dimension), cov=np.identity(self.item_dimension)).rvs()
+    #     item_parameters = {"discrimination_matrix": A,
+    #                        "intercept_vector": delta}
+    #     self.early_model.item_parameters.update(item_parameters)
+    #     return(self.early_model.item_parameters)
+
     def initialize_random_item_parameters(self, Q=np.empty(0)):
         if Q.size == 0:
             Q = self.early_model.item_parameters["q_matrix"]
-        A = np.empty((self.item_dimension, self.latent_dimension))
+        # 1. Sample relative difficulties
+        relative_difficulties_sample = np.sqrt(3)*self.population.sample(
+            self.item_dimension)
+        A = np.zeros((self.item_dimension, self.latent_dimension))
+        delta = np.zeros(self.item_dimension)
+        # 2. Get smallest relative difficulty per item
         for i in range(0, self.item_dimension):
-            A[i] = np.exp(multivariate_normal(mean=np.zeros(
-                self.latent_dimension), cov=np.identity(self.latent_dimension)).rvs())
-        A = np.multiply(A, Q)
-        delta = multivariate_normal(mean=np.zeros(
-            self.item_dimension), cov=np.identity(self.item_dimension)).rvs()
-        item_parameters = {"discrimination_matrix": A,
-                           "intercept_vetor": delta}
+            rel_item = relative_difficulties_sample[i]
+            rel_min = np.where(rel_item == np.median(rel_item))[0]
+            # 3. Sample a_min
+            a_min = np.exp(multivariate_normal(
+                mean=0*np.ones(1), cov=np.identity(1)).rvs())
+            # 4. Calculate delta
+            delta[i] = -a_min*rel_item[rel_min]
+            # 5. Calculate all other a_i's
+            A[i] = -delta[i]/rel_item
+        item_parameters = {"discrimination_matrix": np.multiply(A, Q),
+                           "intercept_vector": delta}
         self.early_model.item_parameters.update(item_parameters)
         return(self.early_model.item_parameters)
+
+    # def initialize_random_intercepts(self, sigma):
+    #     #Relative Item-Difficulties will be sampled from the latent distribution
+    #     #Then these will be transformed to the intercept Domain
+    #     relative_difficulties_sample = self.population.sample(self.item_dimension)
 
     def sample(self, sample_size) -> pd.DataFrame:
         sample = {}

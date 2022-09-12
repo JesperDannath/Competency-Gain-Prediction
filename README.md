@@ -3,16 +3,13 @@
 Die aktuelle Funktionalität kann über simulation_experiments.ipynb nachvollzogen werden
 
 ## Bekannte Probleme
-- EM-Algorithmus ist langsam
 - Newton-Raphson Methode für Q_0 noch nicht implementiert
-- Tests laufen wegen import-fehlern aktuell nicht mehr durch
+- Für hohe Fallzahlen ist die Methode zu langsam und konvergiert nicht gut
 
 
 ## Optimization Roadmap
-
-- Add better Parameter Initialization (smaller search-space, Q*U-Methode wäre okay oder Q^T*Q)
 - Add Newton-Raphson Method for 
-- Add vectorization in Monte Carlo Integral calculation (better utilization of compute ressources)
+- Vecorization for Q-Item such that monte carlo interation is paralell for different parameter-sets (Better scaling with ga pop-size)
 - cython für das Integral benutzen
 - Add multiprocessing for the m_step in q_item optimzation (possible J-fold performance increase) (eher nicht)
 

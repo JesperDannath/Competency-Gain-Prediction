@@ -1,6 +1,7 @@
 from irt_model import irt_model
 import numpy as np
 import pandas as pd
+import copy
 from scipy.stats import multivariate_normal
 
 
@@ -33,8 +34,9 @@ class mirt_2pl(irt_model):
         self.person_parameters = {"covariance": sigma}
 
     def initialize_from_responses(self, response_data: pd.DataFrame):
-        A = np.ones((self.item_dimension, self.latent_dimension))
-        self.item_parameters["q_matrix"] = A
+        #A = np.ones((self.item_dimension, self.latent_dimension))
+        #self.item_parameters["q_matrix"] = A
+        A = self.item_parameters["q_matrix"]
         # delta is initialized with the inverse logistic function
         item_response_mean = np.mean(response_data, axis=0)
         delta = np.log(np.divide(item_response_mean, 1 -
@@ -93,8 +95,11 @@ class mirt_2pl(irt_model):
             self.latent_dimension), cov=sigma))
 
     def sample_competency(self, sample_size=1):
-        return(multivariate_normal.rvs(size=sample_size, mean=np.zeros(
-            self.latent_dimension), cov=self.person_parameters["covariance"]))
+        sample = multivariate_normal.rvs(size=sample_size, mean=np.zeros(
+            self.latent_dimension), cov=self.person_parameters["covariance"])
+        if self.latent_dimension == 1:
+            sample = np.expand_dims(sample, axis=1)
+        return(sample)
 
     # def response_vector_probability(self, theta, response_vector: np.array, A=np.empty(0),
     #                                 delta=np.empty(0)) -> np.array:
@@ -174,7 +179,12 @@ class mirt_2pl(irt_model):
             self.person_parameters.update(parameters["person_parameters"])
             self.check_sigma()
 
-    def corr_to_sigma(self, corr):
+    def get_parameters(self) -> dict:
+        parameter_dict = {"item_parameters": self.item_parameters,
+                          "person_parameters": self.person_parameters}
+        return(copy.deepcopy(parameter_dict))
+
+    def corr_to_sigma(self, corr, check=True):
         """Creates a Covariance Matrix sigma from an array of Correlations
         Args:
             corr (np.array): array of latant trait correlations. Entrys are the upper triangular Matrix
@@ -188,14 +198,22 @@ class mirt_2pl(irt_model):
         np.place(new_sigma,
                  mask=np.tril(np.ones(self.latent_dimension), k=-1).astype(np.bool), vals=corr)
         # new_sigma[np.tril_indices(self.latent_dimension, k=-1)] = corr
-        self.check_sigma(new_sigma)
+        if check == True:
+            self.check_sigma(new_sigma)
         return(new_sigma)
 
-    def fill_zero_discriminations(self, discriminations, item: int) -> np.array:
-        mask = self.item_parameters["q_matrix"][item].astype(np.bool)
-        a_item = np.zeros(mask.shape)
-        np.place(a_item, mask=mask, vals=discriminations)
-        return(a_item)
+    # TODO: Write unittest
+    def fill_zero_discriminations(self, discriminations, item: int = -1) -> np.array:
+        if item == -1:
+            mask = self.item_parameters["q_matrix"].flatten().astype(np.bool)
+            A = np.zeros(mask.shape)
+            np.place(A, mask=mask, vals=discriminations)
+            return(A.reshape((self.item_dimension, self.latent_dimension)))
+        else:
+            mask = self.item_parameters["q_matrix"][item].astype(np.bool)
+            a_item = np.zeros(mask.shape)
+            np.place(a_item, mask=mask, vals=discriminations)
+            return(a_item)
 
     def marginal_response_loglikelihood(self, response_data, N=1000):
         theta = self.sample_competency(N)

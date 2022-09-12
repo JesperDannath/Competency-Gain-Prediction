@@ -32,7 +32,10 @@ class respondent_population():
         if self.intervention:
             ... #TODO: Concatenate
         else:
-            return(self.latent_distribution.rvs(size=sample_size))
+            sample = self.latent_distribution.rvs(size=sample_size)
+            if self.latent_dimension==1 : 
+                sample = np.expand_dims(sample, axis=1)
+            return(sample)
 
     def intervention(self, sample_size, conditional_distribution):
         """_summary_
