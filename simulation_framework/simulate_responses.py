@@ -22,6 +22,7 @@ class response_simulation():
         self.early_model = mirt_2pl(self.item_dimension, self.latent_dimension)
         self.early_model.set_parameters({"item_parameters": early_item_params})
 
+    # TODO: Prohibit all-zero rows
     def initialize_random_q_structured_matrix(self, structure="singular"):
         if structure == "singular":
             early_Q = np.ones((self.item_dimension, self.latent_dimension))

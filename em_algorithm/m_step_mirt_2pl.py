@@ -115,12 +115,12 @@ class m_step_ga_mml(m_step):
         if len(x0) > 0:
             # new_corr = self.genetic_algorithm(
             #    q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
-            if len(x0) > 1:
-                new_corr = cma.CMAEvolutionStrategy(
-                    x0=x0, sigma0=0.5).optimize(lambda x: -1*q_0(x), maxfun=1000, n_jobs=0).result.xfavorite
-            else:
-                new_corr = self.genetic_algorithm(
-                    q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
+            # if len(x0) > 1:
+            # new_corr = cma.CMAEvolutionStrategy(
+            #     x0=x0, sigma0=2).optimize(lambda x: -1*q_0(x), maxfun=1000, n_jobs=0).result.xfavorite
+            # else:
+            new_corr = self.genetic_algorithm(
+                q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
             #new_sigma = minimize(func, x0=x0, method='BFGS').x
             new_sigma = self.model.corr_to_sigma(new_corr)
             log_likelihood += q_0(new_corr)
@@ -146,10 +146,12 @@ class m_step_ga_mml(m_step):
                 return pe_functions["q_item_list"][item](
                     a_item=a_item, delta_item=delta_item)
 
-            # new_item_parameters = self.genetic_algorithm(
-            #     fitness_function=q_item, x0=x0, constraint_function=lambda arg: np.all(arg[0:len(arg)-1] > 0))
-            new_item_parameters = cma.CMAEvolutionStrategy(
-                x0=x0, sigma0=0.5).optimize(lambda x: -1*q_item(x), maxfun=1000, n_jobs=0).result.xfavorite
+            # if len(x0) == 1:
+            new_item_parameters = self.genetic_algorithm(
+                fitness_function=q_item, x0=x0, constraint_function=lambda arg: np.all(arg[0:len(arg)-1] > 0))
+            # else:
+            #     new_item_parameters = cma.CMAEvolutionStrategy(
+            #         x0=x0, sigma0=2).optimize(lambda x: -1*q_item(x), maxfun=1000, n_jobs=0).result.xfavorite
             # sys.stdout.close()
             log_likelihood += q_item(new_item_parameters)
             new_a_item = self.model.fill_zero_discriminations(

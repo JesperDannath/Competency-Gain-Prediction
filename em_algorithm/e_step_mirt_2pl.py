@@ -38,7 +38,7 @@ class e_step_ga_mml(e_step):
         result_matrix = response_prob(theta)
         return(np.mean(result_matrix, axis=0))
 
-    def step(self, response_data: pd.DataFrame, current_item_parameters: dict = {}, current_person_parameters: dict = {}) -> dict:
+    def step(self, response_data: pd.DataFrame, current_item_parameters: dict = {}, current_person_parameters: dict = {}, N=1000) -> dict:
         """E-Step for a classic MIRT Model based on Bock & Aitkin (1981) as well as Zhang (2005).
 
         Args:
@@ -75,59 +75,59 @@ class e_step_ga_mml(e_step):
         #     def func(theta):
         #         factor = np.log(self.model.latent_density(theta, sigma=sigma))
         #         numerator = np.array(self.model.response_matrix_probability(
-        #             theta=np.expand_dims(theta, axis=0), response_matrix=response_data.to_numpy()))
+        #             theta=theta, response_matrix=response_data.to_numpy()))
         #         denominator = normalising_constant_array
-        #         sum = np.sum(np.divide(numerator, denominator))
+        #         sum = np.sum(np.divide(numerator, denominator), axis=1)
         #         return(np.multiply(factor, sum))
-        #     mean = 0
-        #     for i in range(0, N):
-        #         theta = self.model.sample_competency()
-        #         mean += func(theta)/N
-        #     return(mean)
+        #     # Monte Carlo integration
+        #     theta = self.model.sample_competency(sample_size=N)
+        #     result_vector = func(theta)
+        #     return(np.mean(result_vector))
 
-        def q_0(sigma, N=400):
-            def func(theta):
-                factor = np.log(self.model.latent_density(theta, sigma=sigma))
-                numerator = np.array(self.model.response_matrix_probability(
-                    theta=theta, response_matrix=response_data.to_numpy()))
-                denominator = normalising_constant_array
-                sum = np.sum(np.divide(numerator, denominator), axis=1)
-                return(np.multiply(factor, sum))
-            # Monte Carlo integration
-            theta = self.model.sample_competency(sample_size=N)
-            result_vector = func(theta)
-            return(np.mean(result_vector))
-
-        # def q_item(item: int, a: np.array, item_delta: np.array, N=300):
-        #     def func(theta):  # TODO: make this function of array
-        #         icc_value = self.model.icc(theta=np.expand_dims(theta, axis=0), A=np.expand_dims(
-        #             a, axis=0), delta=np.array([item_delta]))  # TODO: check whether this is correct
+        # def q_item(item: int, a: np.array, item_delta: np.array, N=1000):
+        #     def func(theta):
+        #         icc_values = self.model.icc(theta=theta, A=np.expand_dims(
+        #             a, axis=0), delta=np.array([item_delta])).transpose()[0]
         #         r_0_theta = r_0(theta)
         #         r_item_theta = r_item(item, theta)
         #         log_likelihood_item = np.multiply(np.log(
-        #             icc_value), r_0_theta) + np.multiply(np.subtract(r_0_theta, r_item_theta), np.log(1-icc_value))
-        #         return(log_likelihood_item.tolist()[0][0])
+        #             icc_values), r_item_theta) + np.multiply(np.log(1-icc_values), np.subtract(r_0_theta, r_item_theta))
+        #         return(log_likelihood_item)
         #     # Monte Carlo integration
-        #     mean = 0
-        #     for i in range(0, N):
-        #         theta = self.model.sample_competency()
-        #         mean += func(theta)/N
-        #     return(mean)
+        #     theta = self.model.sample_competency(sample_size=N)
+        #     result_vector = func(theta)
+        #     return(np.mean(result_vector))
 
-        def q_item(item: int, a: np.array, item_delta: np.array, N=400):
-            def func(theta):
-                icc_values = self.model.icc(theta=theta, A=np.expand_dims(
-                    a, axis=0), delta=np.array([item_delta])).transpose()[0]
-                r_0_theta = r_0(theta)
-                r_item_theta = r_item(item, theta)
-                log_likelihood_item = np.multiply(np.log(
-                    icc_values), r_item_theta) + np.multiply(np.log(1-icc_values), np.subtract(r_0_theta, r_item_theta))
-                return(log_likelihood_item)
-            # Monte Carlo integration
-            theta = self.model.sample_competency(sample_size=N)
-            result_vector = func(theta)
-            return(np.mean(result_vector))
+        theta_sample = self.model.sample_competency(sample_size=N)
+        r_0_theta = r_0(theta_sample)
+        r_item_theta_list = [r_item(item, theta_sample)
+                             for item in range(0, J)]
 
-        q_function_dict = {"q_0": q_0, "q_item_list": [lambda a_item, delta_item: q_item(
-            item=j, a=a_item, item_delta=delta_item) for j in range(0, J)]}
+        q_0 = self.q_0(
+            theta=theta_sample, normalising_constant_array=normalising_constant_array, response_data=response_data)
+        q_item_list = [self.q_item(item=j, theta=theta_sample, r_0_theta=r_0_theta,
+                                   r_item_theta=r_item_theta_list[j]) for j in range(0, J)]
+
+        q_function_dict = {"q_0": q_0, "q_item_list": q_item_list}
         return(q_function_dict)
+
+    def q_0(self, theta, normalising_constant_array, response_data):
+        numerator = np.array(self.model.response_matrix_probability(
+            theta=theta, response_matrix=response_data.to_numpy()))
+        denominator = normalising_constant_array
+        sum = np.sum(np.divide(numerator, denominator), axis=1)
+
+        def func(sigma):
+            factor = np.log(self.model.latent_density(theta, sigma=sigma))
+            product = np.multiply(factor, sum)
+            return(np.mean(product))
+        return(func)
+
+    def q_item(self, item: int, theta, r_0_theta, r_item_theta):
+        def func(a_item: np.array, delta_item: np.array):
+            icc_values = self.model.icc(theta=theta, A=np.expand_dims(
+                a_item, axis=0), delta=np.array([delta_item])).transpose()[0]
+            log_likelihood_item = np.multiply(np.log(
+                icc_values), r_item_theta) + np.multiply(np.log(1-icc_values), np.subtract(r_0_theta, r_item_theta))
+            return(np.mean(log_likelihood_item))
+        return(func)
