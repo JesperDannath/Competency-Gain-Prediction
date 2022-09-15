@@ -15,6 +15,8 @@ class respondent_population():
         self.intervention=False
 
     def initialize_random_person_parameters(self):
+        #Evtl. nochmal Q^tQ nehmen.
+        #Evtl. auch nochmal die Recovery mit unabhängigen Fähigkeiten testen
         cov = make_sparse_spd_matrix(
             dim=self.latent_dimension, alpha=0.2, norm_diag=True, smallest_coef=-0.9, largest_coef=0.9)
         self.latent_distribution = multivariate_normal(mean=np.zeros(self.latent_dimension), cov=cov)
