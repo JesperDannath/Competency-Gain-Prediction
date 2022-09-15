@@ -16,7 +16,7 @@ class respondent_population():
 
     def initialize_random_person_parameters(self):
         cov = make_sparse_spd_matrix(
-            dim=self.latent_dimension, alpha=0.4, norm_diag=True, smallest_coef=-0.9, largest_coef=0.9)
+            dim=self.latent_dimension, alpha=0.2, norm_diag=True, smallest_coef=-0.9, largest_coef=0.9)
         self.latent_distribution = multivariate_normal(mean=np.zeros(self.latent_dimension), cov=cov)
         return(cov)
     

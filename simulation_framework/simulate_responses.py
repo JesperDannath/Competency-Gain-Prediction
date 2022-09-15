@@ -35,6 +35,15 @@ class response_simulation():
                     early_Q.append(
                         [0 if j != i else 1 for j in range(0, self.latent_dimension)])
             early_Q = np.array(early_Q)
+        elif structure == "pyramid":  # TODO: Implement Pyramid
+            early_Q = []
+            stair_indices = multinomial.rvs(self.item_dimension, p=[
+                1/self.latent_dimension for i in range(0, self.latent_dimension)])
+            for i, frequency in enumerate(stair_indices):
+                for repeat in range(0, frequency):
+                    early_Q.append(
+                        [1 if j <= i else 0 for j in range(0, self.latent_dimension)])
+            early_Q = np.array(early_Q)
         else:
             raise Exception("Q-Matrix structure not known")
         self.early_model.set_parameters(
@@ -66,7 +75,7 @@ class response_simulation():
         # 2. Get smallest relative difficulty per item
         for i in range(0, self.item_dimension):
             rel_item = relative_difficulties_sample[i]
-            rel_min = np.where(rel_item == np.median(rel_item))[0]
+            rel_min = np.where(rel_item >= np.median(rel_item))[0][0]
             # 3. Sample a_min
             a_min = np.exp(multivariate_normal(
                 mean=0*np.ones(1), cov=np.identity(1)).rvs())
@@ -92,4 +101,7 @@ class response_simulation():
         #p_late = LFA_Curve(late_parameters, alpha, s)
         sample["early_responses"] = pd.DataFrame(bernoulli(p=p_early).rvs())
         #late_sample = bernoulli(p=p_late).rvs()
+        sample["sample_size"] = sample_size
+        sample["latent_dimension"] = self.latent_dimension
+        sample["item_dimension"] = self.item_dimension
         return(sample)

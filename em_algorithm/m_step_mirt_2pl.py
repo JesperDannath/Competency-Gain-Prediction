@@ -23,7 +23,7 @@ class m_step_ga_mml(m_step):
 
     # TODO: Python package für ga ausprobieren: cmaes (https://github.com/CMA-ES/pycma)
     def genetic_algorithm(self, fitness_function, x0: np.array, constraint_function=lambda x: True,
-                          population_size: int = 40, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=1):
+                          population_size: int = 40, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=1, max_iter=100):
         # Helping functions
         def mutate(individual):
             valid_individual = False
@@ -59,7 +59,8 @@ class m_step_ga_mml(m_step):
             reverse=True, key=lambda individual: individual[0])
         converged = False
         candidate_population = False
-        while not converged:
+        iter = 0
+        while not converged and (iter < max_iter):
             # Selection
             # (Len-rank)/gaussian_sum
             # population = random.choices(population=population_base, weights=list(
@@ -96,6 +97,7 @@ class m_step_ga_mml(m_step):
                     population_base = population_base[0:population_size]
             else:
                 candidate_population = False
+            iter += 1
         return(population_base[0][1])
 
     def step(self, pe_functions: dict):

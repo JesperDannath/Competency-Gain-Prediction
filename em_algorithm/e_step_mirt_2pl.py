@@ -4,6 +4,7 @@ import pandas as pd
 import os
 import sys
 from scipy import integrate
+from scipy.optimize import approx_fprime
 sys.path.append(os.path.realpath("./models"))
 # Custom modules, import violates pep8, so we have to declare an exeption
 if True:  # noqa: E402
@@ -105,10 +106,12 @@ class e_step_ga_mml(e_step):
 
         q_0 = self.q_0(
             theta=theta_sample, normalising_constant_array=normalising_constant_array, response_data=response_data)
+        q_0_grad = self.q_0_gradient(theta=theta_sample, r_0_theta=r_0_theta)
         q_item_list = [self.q_item(item=j, theta=theta_sample, r_0_theta=r_0_theta,
                                    r_item_theta=r_item_theta_list[j]) for j in range(0, J)]
 
-        q_function_dict = {"q_0": q_0, "q_item_list": q_item_list}
+        q_function_dict = {"q_0": q_0, "q_0_grad": q_0_grad,
+                           "q_item_list": q_item_list}
         return(q_function_dict)
 
     def q_0(self, theta, normalising_constant_array, response_data):
@@ -121,6 +124,38 @@ class e_step_ga_mml(e_step):
             factor = np.log(self.model.latent_density(theta, sigma=sigma))
             product = np.multiply(factor, sum)
             return(np.mean(product))
+        return(func)
+
+    def q_0_gradient(self, theta, r_0_theta):
+        D = self.model.latent_dimension
+        constant = np.multiply(r_0_theta, 1/self.model.latent_density(theta))
+        constant = np.multiply(
+            constant, 1/np.power(np.sqrt(2*np.math.pi), D))
+
+        def quadratic_form_func(sigma): return np.sum(np.multiply(
+            np.squeeze(np.dot(np.expand_dims(theta, 1), np.linalg.inv(sigma))), theta), axis=1)
+
+        def grad1(sigma_flat): return np.sqrt(
+            np.linalg.det(sigma_flat.reshape((D, D))))
+
+        def grad2(sigma_flat): return quadratic_form_func(
+            sigma_flat.reshape((D, D)))
+
+        def func(sigma):
+            quadratic_form = quadratic_form_func(sigma)
+            # The product-rule for derivatives is applied
+            # sum1
+            sum1 = np.exp(quadratic_form) * \
+                approx_fprime(f=grad1, xk=sigma.flatten(),
+                              epsilon=1.4901161193847656e-08).reshape((D, D))
+            # sum2
+            sum2 = np.sqrt(np.linalg.det(sigma))
+            sum2 = sum2*np.exp(quadratic_form)
+            sum2 = sum2 * \
+                approx_fprime(f=grad2, xk=sigma.flatten(),
+                              epsilon=1.4901161193847656e-08).reshape((D, D))
+            integrant = np.multiply(constant, np.add(sum1, sum2))
+            return(np.mean(integrant))
         return(func)
 
     def q_item(self, item: int, theta, r_0_theta, r_item_theta):

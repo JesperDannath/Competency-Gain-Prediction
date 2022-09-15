@@ -53,6 +53,7 @@ class test_mirt_2pl(unittest.TestCase):
         # Test functionality of step function
         self.assertTrue("q_0" in result_function_dict.keys())
         self.assertTrue("q_item_list" in result_function_dict.keys())
+        self.assertTrue("q_0_grad" in result_function_dict.keys())
         # Test functionality of output functions
         # Test q_0
         q_0 = result_function_dict["q_0"]
@@ -61,6 +62,9 @@ class test_mirt_2pl(unittest.TestCase):
                                 [0.5, 0.5, 1]])
         q_0_value = q_0(sigma_input)
         self.assertTrue(q_0_value != 0.0)
+        q_0_grad = result_function_dict["q_0_grad"]
+        q_0_grad_value = q_0_grad(sigma_input)
+        self.assertTrue(q_0_grad_value != 0.0)
         # Test q_item
         A_input = np.array([[1, 1, 1],
                             [1, 0, 0],

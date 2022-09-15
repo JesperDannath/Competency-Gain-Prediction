@@ -39,6 +39,7 @@ class mirt_2pl(irt_model):
         A = self.item_parameters["q_matrix"]
         # delta is initialized with the inverse logistic function
         item_response_mean = np.mean(response_data, axis=0)
+        item_response_mean[item_response_mean == 0] = 0.01
         delta = np.log(np.divide(item_response_mean, 1 -
                                  item_response_mean)).to_numpy()
         n = self.latent_dimension-1
