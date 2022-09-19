@@ -44,7 +44,7 @@ class mirt_2pl(irt_model):
                                  item_response_mean)).to_numpy()
         n = self.latent_dimension-1
         sigma = self.corr_to_sigma(
-            corr=0.5*np.zeros(int((n*(n+1))/2)))
+            corr=0.5*np.ones(int((n*(n+1))/2)))
         item_parameters = {
             "discrimination_matrix": A, "intercept_vector": delta}
         person_parameters = {"covariance": sigma}
@@ -67,10 +67,22 @@ class mirt_2pl(irt_model):
         if not sigma.shape == (self.latent_dimension, self.latent_dimension):
             raise Exception("Covariance is of wrong shape")
         if not np.array_equal(sigma.transpose(), sigma):
+            print(sigma)
             raise Exception("Covariance is not symmetric")
         if not np.all(np.linalg.eigvals(sigma) >= 0):
             raise Exception("New Covariance not positive semidefinite")
         return(True)
+
+    def fix_sigma(self, sigma: np.array):
+        """Fix the main Diagonal of sigma if not all entrys are one.
+        Args:
+            sigma (np.array): Latent Covariance matrix of shape (latent_dim, latent_dim)
+        """
+        sd_vector = np.sqrt(sigma.diagonal())
+        inv_sd_matrix = np.linalg.inv(np.diag(sd_vector))
+        correlation_matrix = np.dot(
+            np.dot(inv_sd_matrix, sigma), inv_sd_matrix)
+        return(correlation_matrix)
 
     def icc(self, theta: np.array, A=np.empty(0), delta=np.empty(0)) -> np.array:
         """Item Characteristic Curve for a MIRT-2PL Model or similar logistic IRT Models

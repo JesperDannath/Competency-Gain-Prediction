@@ -22,7 +22,7 @@ class response_simulation():
         self.early_model = mirt_2pl(self.item_dimension, self.latent_dimension)
         self.early_model.set_parameters({"item_parameters": early_item_params})
 
-    #TODO: Prevent All-zero columns
+    # TODO: Prevent All-zero columns
     def initialize_random_q_structured_matrix(self, structure="singular"):
         if structure == "singular":
             early_Q = np.ones((self.item_dimension, self.latent_dimension))
@@ -36,7 +36,7 @@ class response_simulation():
                         [0 if j != i else 1 for j in range(0, self.latent_dimension)])
             early_Q = np.array(early_Q)
         elif structure == "pyramid":
-            #Items mit mehr skills sind ggf. unwahrscheinlicher (linearer abstieg)
+            # Items mit mehr skills sind ggf. unwahrscheinlicher (linearer abstieg)
             early_Q = []
             stair_indices = multinomial.rvs(self.item_dimension, p=[
                 1/self.latent_dimension for i in range(0, self.latent_dimension)])
@@ -72,7 +72,7 @@ class response_simulation():
         # 1. Sample relative difficulties
         relative_difficulties_sample = np.sqrt(3)*self.population.sample(
             self.item_dimension)
-        #t-Verteilung oder Gleichverteilung mal ausprobieren
+        # t-Verteilung oder Gleichverteilung mal ausprobieren
         A = np.zeros((self.item_dimension, self.latent_dimension))
         delta = np.zeros(self.item_dimension)
         # 2. Get smallest relative difficulty per item

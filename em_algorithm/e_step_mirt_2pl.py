@@ -126,11 +126,12 @@ class e_step_ga_mml(e_step):
             return(np.mean(product))
         return(func)
 
-    def q_0_gradient(self, theta, r_0_theta):
+    def q_0_gradient_a(self, theta, r_0_theta):
         D = self.model.latent_dimension
+        N = theta.shape[0]
         constant = np.multiply(r_0_theta, 1/self.model.latent_density(theta))
         constant = np.multiply(
-            constant, 1/np.power(np.sqrt(2*np.math.pi), D))
+            constant, 1/np.sqrt(np.power(2*np.math.pi, D)))
 
         def quadratic_form_func(sigma): return np.sum(np.multiply(
             np.squeeze(np.dot(np.expand_dims(theta, 1), np.linalg.inv(sigma))), theta), axis=1)
@@ -145,17 +146,38 @@ class e_step_ga_mml(e_step):
             quadratic_form = quadratic_form_func(sigma)
             # The product-rule for derivatives is applied
             # sum1
-            sum1 = np.exp(quadratic_form) * \
+            sum1 = np.exp(quadratic_form).reshape((N, 1, 1)) * \
                 approx_fprime(f=grad1, xk=sigma.flatten(),
-                              epsilon=1.4901161193847656e-08).reshape((D, D))
+                              epsilon=1.4901161193847656e-20).reshape((D, D))
             # sum2
             sum2 = np.sqrt(np.linalg.det(sigma))
             sum2 = sum2*np.exp(quadratic_form)
-            sum2 = sum2 * \
+            sum2 = sum2.reshape((N, 1, 1)) * \
                 approx_fprime(f=grad2, xk=sigma.flatten(),
-                              epsilon=1.4901161193847656e-08).reshape((D, D))
-            integrant = np.multiply(constant, np.add(sum1, sum2))
-            return(np.mean(integrant))
+                              epsilon=1.4901161193847656e-20).reshape((N, D, D))
+            integrant = np.multiply(constant.reshape(
+                (N, 1, 1)), np.add(sum1, sum2))
+            return(np.mean(integrant, axis=0))
+        return(func)
+
+    def q_0_gradient(self, theta, r_0_theta):
+        D = self.model.latent_dimension
+        N = theta.shape[0]
+
+        def func(sigma):
+            #quadratic_form = quadratic_form_func(sigma)
+            inv_sigma = np.linalg.inv(sigma)
+
+            sum1 = np.multiply(-0.5, inv_sigma)
+            # sum2
+            sum2 = np.dot(np.expand_dims(theta, 1), inv_sigma)
+            #sum2 = -1*np.sum(np.multiply(sum2, sum2), axis=2).squeeze()
+            sum2 = 0.5*np.matmul(sum2.reshape(N, 1, D, 1),
+                                 sum2.reshape(N, 1, 1, D)).squeeze()
+            sum2 = np.transpose(sum2, axes=[0, 2, 1])
+            integrant = np.multiply(r_0_theta.reshape(
+                (N, 1, 1)), np.add(sum1, sum2))
+            return(np.mean(integrant, axis=0))
         return(func)
 
     def q_item(self, item: int, theta, r_0_theta, r_item_theta):

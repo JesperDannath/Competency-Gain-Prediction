@@ -2,7 +2,9 @@ from hashlib import new
 from m_step import m_step
 import pandas as pd
 import numpy as np
+import scipy
 from scipy.optimize import minimize
+from scipy.optimize import approx_fprime
 from scipy.stats import multivariate_normal
 from scipy.stats import bernoulli
 import random
@@ -83,10 +85,10 @@ class m_step_ga_mml(m_step):
             current_highest_fitness = max(fitness)
             before_highest_fitness = population_base[0][0]
             population_base = population_base + list(zip(fitness, population))
-            #print("Length of Population = {0}".format(len(population_base)))
+            # print("Length of Population = {0}".format(len(population_base)))
             population_base.sort(
                 reverse=True, key=lambda individual: individual[0])
-            #print("Highest Current Fitness:")
+            # print("Highest Current Fitness:")
             # TODO: I could decrease mutation variance in case of lower fitness
             if (abs(current_highest_fitness - before_highest_fitness) < 0.001) or (current_highest_fitness < before_highest_fitness):
                 if candidate_population:
@@ -100,7 +102,21 @@ class m_step_ga_mml(m_step):
             iter += 1
         return(population_base[0][1])
 
-    def step(self, pe_functions: dict):
+    def newton_raphson(self, funct, x0, max_iter=1000):
+        x_t = x0.copy()
+        converged = False
+        iter = 0
+        while not converged:
+            x_t_last = x_t.copy()
+            first_derivative = funct(x_t)
+            second_derivative = approx_fprime(f=funct, xk=x_t).diagonal()
+            x_t = x0 + np.divide(first_derivative, second_derivative)
+            if (np.abs(x_t - x_t_last) < 0.1).all() or (iter >= max_iter):
+                converged = True
+            iter = iter+1
+        return(x_t)
+
+    def step(self, pe_functions: dict, person_method="newton_raphson", item_method="ga"):
         # Find the new value for Sigma
         print("Maximize Q-0")
         # The only parameters we need to optimise are the correlations
@@ -112,22 +128,77 @@ class m_step_ga_mml(m_step):
             return pe_functions["q_0"](np.reshape(
                 sigma, newshape=(
                     self.model.latent_dimension, self.model.latent_dimension)))
+
+        # def q_0_gradient(corr_vector):
+        #     sigma = self.model.corr_to_sigma(corr_vector).reshape((
+        #         self.model.latent_dimension, self.model.latent_dimension))
+        #     gradient = pe_functions["q_0_grad"](sigma)
+        #     return(gradient[np.triu_indices_from(gradient, k=1)])
+
+        def q_0_sqrt(sqrt_sigma_vector):
+            sqrt_sigma = sqrt_sigma_vector.reshape(
+                (self.model.latent_dimension, self.model.latent_dimension))
+            sigma = np.dot(sqrt_sigma, sqrt_sigma.transpose())
+            return pe_functions["q_0"](np.reshape(
+                sigma, newshape=(
+                    self.model.latent_dimension, self.model.latent_dimension)))
+
+        def q_0_gradient_sqrt(sqrt_sigma_vector):
+            D = self.model.latent_dimension
+            sqrt_sigma = sqrt_sigma_vector.reshape((D, D))
+            sigma = np.dot(sqrt_sigma, sqrt_sigma.transpose())
+            # Apply chain rule
+            # gradient = np.dot(
+            #    np.dot(sqrt_sigma, pe_functions["q_0_grad"](sigma)), sqrt_sigma.transpose())
+            chain2 = approx_fprime(f=lambda C: np.dot(
+                C.reshape((D, D)), C.reshape((D, D)).transpose()).flatten(), xk=sqrt_sigma_vector,
+                epsilon=1.4901161193847656e-20).reshape((D**2, D, D))
+            # gradient = np.dot(pe_functions["q_0_grad"](
+            #    sigma), 2*np.dot(sqrt_sigma, np.ones(sqrt_sigma.shape)))
+            gradient = np.sum(np.sum(np.multiply(
+                pe_functions["q_0_grad"](sigma), chain2), axis=1), axis=1)
+            return(gradient.flatten())
+
         x0 = self.model.person_parameters["covariance"][np.triu_indices(
             self.model.latent_dimension, k=1)]
-        if len(x0) > 0:
-            # new_corr = self.genetic_algorithm(
-            #    q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
-            # if len(x0) > 1:
-            # new_corr = cma.CMAEvolutionStrategy(
-            #     x0=x0, sigma0=2).optimize(lambda x: -1*q_0(x), maxfun=1000, n_jobs=0).result.xfavorite
-            # else:
-            new_corr = self.genetic_algorithm(
-                q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
-            #new_sigma = minimize(func, x0=x0, method='BFGS').x
-            new_sigma = self.model.corr_to_sigma(new_corr)
-            log_likelihood += q_0(new_corr)
-        else:
-            new_sigma = self.model.person_parameters["covariance"]
+
+        if person_method == "ga":
+            if len(x0) > 0:
+                # new_corr = self.genetic_algorithm(
+                #    q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
+                # if len(x0) > 1:
+                # new_corr = cma.CMAEvolutionStrategy(
+                #     x0=x0, sigma0=2).optimize(lambda x: -1*q_0(x), maxfun=1000, n_jobs=0).result.xfavorite
+                # else:
+                new_corr = self.genetic_algorithm(
+                    q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
+                # new_sigma = minimize(func, x0=x0, method='BFGS').x
+                new_sigma = self.model.corr_to_sigma(new_corr)
+                log_likelihood += q_0(new_corr)
+            else:
+                new_sigma = self.model.person_parameters["covariance"]
+        elif person_method == "BFGS":
+            x0 = scipy.linalg.sqrtm(
+                self.model.person_parameters["covariance"]).flatten()
+            new_sigma_sqrt = minimize(
+                lambda x: -1*q_0_sqrt(x), jac=lambda x: -1*q_0_gradient_sqrt(x), x0=x0, method='BFGS').x
+            # new_sigma_sqrt = minimize(
+            #    lambda x: -1*q_0_sqrt(x), x0=x0, method='BFGS').x
+            new_sigma_sqrt = new_sigma_sqrt.reshape(
+                (self.model.latent_dimension, self.model.latent_dimension))
+            new_sigma = np.dot(new_sigma_sqrt, new_sigma_sqrt.transpose())
+            new_sigma = self.model.fix_sigma(new_sigma)
+            new_sigma = np.round(new_sigma, 5)
+        elif person_method == "newton_raphson":
+            x0 = scipy.linalg.sqrtm(
+                self.model.person_parameters["covariance"]).flatten()
+            new_sigma_sqrt = self.newton_raphson(
+                x0=x0, funct=q_0_gradient_sqrt)
+            new_sigma_sqrt = new_sigma_sqrt.reshape(
+                (self.model.latent_dimension, self.model.latent_dimension))
+            new_sigma = np.dot(new_sigma_sqrt, new_sigma_sqrt.transpose())
+            new_sigma = self.model.fix_sigma(new_sigma)
+            new_sigma = np.round(new_sigma, 5)
         # Find new values for A and delta
         new_A = np.empty(
             shape=self.model.item_parameters["discrimination_matrix"].shape)
