@@ -39,7 +39,7 @@ class e_step_ga_mml(e_step):
         result_matrix = response_prob(theta)
         return(np.mean(result_matrix, axis=0))
 
-    def step(self, response_data: pd.DataFrame, current_item_parameters: dict = {}, current_person_parameters: dict = {}, N=1000) -> dict:
+    def step(self, response_data: pd.DataFrame, current_item_parameters: dict = {}, current_person_parameters: dict = {}, iter=-1) -> dict:
         """E-Step for a classic MIRT Model based on Bock & Aitkin (1981) as well as Zhang (2005).
 
         Args:
@@ -72,34 +72,14 @@ class e_step_ga_mml(e_step):
             # TODO: Monte Carlo
             return(np.sum(np.divide(numerator, denominator), axis=1))
 
-        # def q_0(sigma, N=400):
-        #     def func(theta):
-        #         factor = np.log(self.model.latent_density(theta, sigma=sigma))
-        #         numerator = np.array(self.model.response_matrix_probability(
-        #             theta=theta, response_matrix=response_data.to_numpy()))
-        #         denominator = normalising_constant_array
-        #         sum = np.sum(np.divide(numerator, denominator), axis=1)
-        #         return(np.multiply(factor, sum))
-        #     # Monte Carlo integration
-        #     theta = self.model.sample_competency(sample_size=N)
-        #     result_vector = func(theta)
-        #     return(np.mean(result_vector))
-
-        # def q_item(item: int, a: np.array, item_delta: np.array, N=1000):
-        #     def func(theta):
-        #         icc_values = self.model.icc(theta=theta, A=np.expand_dims(
-        #             a, axis=0), delta=np.array([item_delta])).transpose()[0]
-        #         r_0_theta = r_0(theta)
-        #         r_item_theta = r_item(item, theta)
-        #         log_likelihood_item = np.multiply(np.log(
-        #             icc_values), r_item_theta) + np.multiply(np.log(1-icc_values), np.subtract(r_0_theta, r_item_theta))
-        #         return(log_likelihood_item)
-        #     # Monte Carlo integration
-        #     theta = self.model.sample_competency(sample_size=N)
-        #     result_vector = func(theta)
-        #     return(np.mean(result_vector))
-
-        theta_sample = self.model.sample_competency(sample_size=N)
+        if iter == -1:
+            self.N = 1000
+        elif iter == 1:
+            self.N = 100 + 6**self.model.latent_dimension
+        elif iter > 1:
+            self.N = int(self.N*1.2)
+        theta_sample = self.model.sample_competency(
+            sample_size=self.N, qmc=True)
         r_0_theta = r_0(theta_sample)
         r_item_theta_list = [r_item(item, theta_sample)
                              for item in range(0, J)]
@@ -126,39 +106,39 @@ class e_step_ga_mml(e_step):
             return(np.mean(product))
         return(func)
 
-    def q_0_gradient_a(self, theta, r_0_theta):
-        D = self.model.latent_dimension
-        N = theta.shape[0]
-        constant = np.multiply(r_0_theta, 1/self.model.latent_density(theta))
-        constant = np.multiply(
-            constant, 1/np.sqrt(np.power(2*np.math.pi, D)))
+    # def q_0_gradient_a(self, theta, r_0_theta):
+    #     D = self.model.latent_dimension
+    #     N = theta.shape[0]
+    #     constant = np.multiply(r_0_theta, 1/self.model.latent_density(theta))
+    #     constant = np.multiply(
+    #         constant, 1/np.sqrt(np.power(2*np.math.pi, D)))
 
-        def quadratic_form_func(sigma): return np.sum(np.multiply(
-            np.squeeze(np.dot(np.expand_dims(theta, 1), np.linalg.inv(sigma))), theta), axis=1)
+    #     def quadratic_form_func(sigma): return np.sum(np.multiply(
+    #         np.squeeze(np.dot(np.expand_dims(theta, 1), np.linalg.inv(sigma))), theta), axis=1)
 
-        def grad1(sigma_flat): return np.sqrt(
-            np.linalg.det(sigma_flat.reshape((D, D))))
+    #     def grad1(sigma_flat): return np.sqrt(
+    #         np.linalg.det(sigma_flat.reshape((D, D))))
 
-        def grad2(sigma_flat): return quadratic_form_func(
-            sigma_flat.reshape((D, D)))
+    #     def grad2(sigma_flat): return quadratic_form_func(
+    #         sigma_flat.reshape((D, D)))
 
-        def func(sigma):
-            quadratic_form = quadratic_form_func(sigma)
-            # The product-rule for derivatives is applied
-            # sum1
-            sum1 = np.exp(quadratic_form).reshape((N, 1, 1)) * \
-                approx_fprime(f=grad1, xk=sigma.flatten(),
-                              epsilon=1.4901161193847656e-20).reshape((D, D))
-            # sum2
-            sum2 = np.sqrt(np.linalg.det(sigma))
-            sum2 = sum2*np.exp(quadratic_form)
-            sum2 = sum2.reshape((N, 1, 1)) * \
-                approx_fprime(f=grad2, xk=sigma.flatten(),
-                              epsilon=1.4901161193847656e-20).reshape((N, D, D))
-            integrant = np.multiply(constant.reshape(
-                (N, 1, 1)), np.add(sum1, sum2))
-            return(np.mean(integrant, axis=0))
-        return(func)
+    #     def func(sigma):
+    #         quadratic_form = quadratic_form_func(sigma)
+    #         # The product-rule for derivatives is applied
+    #         # sum1
+    #         sum1 = np.exp(quadratic_form).reshape((N, 1, 1)) * \
+    #             approx_fprime(f=grad1, xk=sigma.flatten(),
+    #                           epsilon=1.4901161193847656e-20).reshape((D, D))
+    #         # sum2
+    #         sum2 = np.sqrt(np.linalg.det(sigma))
+    #         sum2 = sum2*np.exp(quadratic_form)
+    #         sum2 = sum2.reshape((N, 1, 1)) * \
+    #             approx_fprime(f=grad2, xk=sigma.flatten(),
+    #                           epsilon=1.4901161193847656e-20).reshape((N, D, D))
+    #         integrant = np.multiply(constant.reshape(
+    #             (N, 1, 1)), np.add(sum1, sum2))
+    #         return(np.mean(integrant, axis=0))
+    #     return(func)
 
     def q_0_gradient(self, theta, r_0_theta):
         D = self.model.latent_dimension

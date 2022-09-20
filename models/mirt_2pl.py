@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 import copy
 from scipy.stats import multivariate_normal
+from scipy.stats.qmc import MultivariateNormalQMC
 
 
 class mirt_2pl(irt_model):
@@ -107,9 +108,13 @@ class mirt_2pl(irt_model):
         return(multivariate_normal.pdf(x=theta, mean=np.zeros(
             self.latent_dimension), cov=sigma))
 
-    def sample_competency(self, sample_size=1):
-        sample = multivariate_normal.rvs(size=sample_size, mean=np.zeros(
-            self.latent_dimension), cov=self.person_parameters["covariance"])
+    def sample_competency(self, sample_size=1, qmc=False):
+        if not qmc:
+            sample = multivariate_normal.rvs(size=sample_size, mean=np.zeros(
+                self.latent_dimension), cov=self.person_parameters["covariance"])
+        else:
+            sample = MultivariateNormalQMC(mean=np.zeros(
+                self.latent_dimension), cov=self.person_parameters["covariance"]).random(sample_size)
         if self.latent_dimension == 1:
             sample = np.expand_dims(sample, axis=1)
         return(sample)

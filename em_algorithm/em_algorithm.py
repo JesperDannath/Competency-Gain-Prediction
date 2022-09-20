@@ -28,7 +28,7 @@ class em_algorithm():
             dict: _description_
         """
         converged = False
-        i = 0
+        i = 1
         self.e_step.set_incomplete_data(data)
         current_parameters = {"item_parameters": self.model.item_parameters,
                               "person_parameters": self.model.person_parameters}
@@ -39,7 +39,8 @@ class em_algorithm():
             last_step_parameters = copy.deepcopy(current_parameters)
             last_step_marginal_loglikelihood = marginal_loglikelihood.copy()
             print("E-step")
-            posterior_expectation = self.e_step.step(response_data=data)
+            posterior_expectation = self.e_step.step(
+                response_data=data, iter=i)
             print("M-step")
             current_parameters, log_likelihood = self.m_step.step(
                 pe_functions=posterior_expectation)
@@ -57,7 +58,7 @@ class em_algorithm():
             #    self.model.set_parameters(last_step_parameters)
             #    current_parameters = copy.deepcopy(last_step_parameters)
             #    marginal_loglikelihood = last_step_marginal_loglikelihood.copy()
-            if (marginal_loglikelihood_diff <= 0.2) or (i >= max_iter-1):
+            if (marginal_loglikelihood_diff <= 0.2) or (i >= max_iter):
                 converged = True
             # if (np.sum(np.array(parameter_diff) >= np.array(stop_criterion)) == 0) and i >= 10:
             #    converged = True

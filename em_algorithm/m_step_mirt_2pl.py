@@ -109,8 +109,10 @@ class m_step_ga_mml(m_step):
         while not converged:
             x_t_last = x_t.copy()
             first_derivative = funct(x_t)
-            second_derivative = approx_fprime(f=funct, xk=x_t).diagonal()
-            x_t = x0 + np.divide(first_derivative, second_derivative)
+            second_derivative = approx_fprime(
+                f=funct, xk=x_t, epsilon=1.4901161193847656e-22).diagonal()
+            x_t = x_t - np.divide(first_derivative, second_derivative,
+                                  out=np.zeros_like(first_derivative), where=second_derivative != 0.0001)
             if (np.abs(x_t - x_t_last) < 0.1).all() or (iter >= max_iter):
                 converged = True
             iter = iter+1
@@ -188,7 +190,7 @@ class m_step_ga_mml(m_step):
                 (self.model.latent_dimension, self.model.latent_dimension))
             new_sigma = np.dot(new_sigma_sqrt, new_sigma_sqrt.transpose())
             new_sigma = self.model.fix_sigma(new_sigma)
-            new_sigma = np.round(new_sigma, 5)
+            new_sigma = np.round(new_sigma, 4)
         elif person_method == "newton_raphson":
             x0 = scipy.linalg.sqrtm(
                 self.model.person_parameters["covariance"]).flatten()
@@ -198,7 +200,7 @@ class m_step_ga_mml(m_step):
                 (self.model.latent_dimension, self.model.latent_dimension))
             new_sigma = np.dot(new_sigma_sqrt, new_sigma_sqrt.transpose())
             new_sigma = self.model.fix_sigma(new_sigma)
-            new_sigma = np.round(new_sigma, 5)
+            new_sigma = np.round(new_sigma, 4)
         # Find new values for A and delta
         new_A = np.empty(
             shape=self.model.item_parameters["discrimination_matrix"].shape)
