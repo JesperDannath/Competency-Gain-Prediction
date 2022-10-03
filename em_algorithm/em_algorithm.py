@@ -38,10 +38,10 @@ class em_algorithm():
             print("EM Iteration {0}".format(i+1))
             last_step_parameters = copy.deepcopy(current_parameters)
             last_step_marginal_loglikelihood = marginal_loglikelihood.copy()
-            print("E-step")
+            # print("E-step")
             posterior_expectation = self.e_step.step(
                 response_data=data, iter=i)
-            print("M-step")
+            # print("M-step")
             current_parameters, log_likelihood = self.m_step.step(
                 pe_functions=posterior_expectation)
             self.model.set_parameters(current_parameters)
@@ -58,8 +58,12 @@ class em_algorithm():
             #    self.model.set_parameters(last_step_parameters)
             #    current_parameters = copy.deepcopy(last_step_parameters)
             #    marginal_loglikelihood = last_step_marginal_loglikelihood.copy()
-            if (marginal_loglikelihood_diff <= 0.2) or (i >= max_iter):
-                converged = True
+            if (marginal_loglikelihood_diff <= 0.1) or (i >= max_iter):
+                candidate_count += 1
+                if candidate_count >= 3:
+                    converged = True
+            else:
+                candidate_count = 0
             # if (np.sum(np.array(parameter_diff) >= np.array(stop_criterion)) == 0) and i >= 10:
             #    converged = True
             i = i+1
