@@ -5,6 +5,7 @@ import os
 import sys
 from scipy import integrate
 from scipy.optimize import approx_fprime
+from scipy.stats import ttest_ind
 from hotelling.stats import hotelling_t2
 sys.path.append(os.path.realpath("./models"))
 # Custom modules, import violates pep8, so we have to declare an exeption
@@ -82,9 +83,11 @@ class e_step_ga_mml(e_step):
         self.last_qmc_variance_data = self.qmc_variance_data
         self.qmc_variance_data = self.get_qmc_variance_data(
             normalising_constant_array, response_data)
-        p_change = self.compare_qmc_data(
-            last_qmc_data=self.last_qmc_variance_data, qmc_data=self.qmc_variance_data)
-        if (iter > 1) & (p_change > 0.1):
+        # p_change = self.compare_qmc_data(
+        #    last_qmc_data=self.last_qmc_variance_data, qmc_data=self.qmc_variance_data)
+        p_change = ttest_ind(
+            self.qmc_variance_data, self.last_qmc_variance_data, axis=0, equal_var=False).pvalue[0]
+        if (iter > 1) & (p_change > 0.05):  # TODO: Try one-sided alternative (Sigma should increase)
             self.N = int(self.N*1.2)
 
         print("Current Monte Carlo Sample size: {0}".format(self.N))
@@ -124,23 +127,38 @@ class e_step_ga_mml(e_step):
                            "q_item_list": q_item_list}
         return(q_function_dict)
 
+    # def get_qmc_variance_data(self, normalising_constant_array, response_data, sample_size=30):
+    #     sigma = self.model.person_parameters["covariance"]
+    #     A = self.model.item_parameters["discrimination_matrix"]
+    #     delta = self.model.item_parameters["intercept_vector"]
+    #     J = response_data.shape[1]
+    #     q_data = np.empty(shape=(sample_size, 1+J))
+    #     for i in range(0, sample_size):
+    #         theta_sample = self.model.sample_competency(
+    #             sample_size=self.N, qmc=True)
+    #         q_function_list = self.prepare_q_functions(
+    #             theta_sample, response_data, normalising_constant_array)
+    #         q_values = [q_function_list["q_0"](sigma)]
+    #         for j in range(0, J):  # TODO: For performance reasons only use a few random items e.g. two
+    #             a_item = A[j, :]
+    #             delta_item = delta[j]
+    #             q_values.append(
+    #                 q_function_list["q_item_list"][j](a_item, delta_item))
+    #         q_data[i] = np.array(q_values)
+    #     return(q_data)
+
     def get_qmc_variance_data(self, normalising_constant_array, response_data, sample_size=30):
         sigma = self.model.person_parameters["covariance"]
         A = self.model.item_parameters["discrimination_matrix"]
         delta = self.model.item_parameters["intercept_vector"]
         J = response_data.shape[1]
-        q_data = np.empty(shape=(sample_size, 1+J))
+        q_data = np.empty(shape=(sample_size, 1))
         for i in range(0, sample_size):
             theta_sample = self.model.sample_competency(
                 sample_size=self.N, qmc=True)
-            q_function_list = self.prepare_q_functions(
-                theta_sample, response_data, normalising_constant_array)
-            q_values = [q_function_list["q_0"](sigma)]
-            for j in range(0, J):  # TODO: For performance reasons only use a few random items e.g. two
-                a_item = A[j, :]
-                delta_item = delta[j]
-                q_values.append(
-                    q_function_list["q_item_list"][j](a_item, delta_item))
+            q_0 = self.q_0(
+                theta=theta_sample, normalising_constant_array=normalising_constant_array, response_data=response_data)
+            q_values = q_0(sigma)
             q_data[i] = np.array(q_values)
         return(q_data)
 
