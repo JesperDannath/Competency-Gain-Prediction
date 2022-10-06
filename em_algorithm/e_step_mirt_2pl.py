@@ -148,7 +148,7 @@ class e_step_ga_mml(e_step):
     #         q_data[i] = np.array(q_values)
     #     return(q_data)
 
-    def get_qmc_variance_data(self, normalising_constant_array, response_data, sample_size=30):
+    def get_qmc_variance_data(self, normalising_constant_array, response_data, sample_size=30): # TODO: Anderen Test nehmen der besser mit kleineren Stichproben ist (rank-sum)
         sigma = self.model.person_parameters["covariance"]
         A = self.model.item_parameters["discrimination_matrix"]
         delta = self.model.item_parameters["intercept_vector"]
