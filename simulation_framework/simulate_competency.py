@@ -17,7 +17,7 @@ class respondent_population():
     def initialize_random_person_parameters(self):
         #TODO:  nochmal Q^tQ nehmen und dann den gewichteten Mittelwert bilden!
         #evtl. auch nochmal die Recovery mit unabhängigen Fähigkeiten testen
-        X = np.random.rand(self.latent_dimension, self.latent_dimension)
+        X = np.random.rand(self.latent_dimension, self.latent_dimension) #TODO: Um Werte kleiner zu machen Wurzel ziehen
         # cov = np.dot(X, X.transpose())
         # sd_vector = np.sqrt(cov.diagonal())
         # inv_sd_matrix = np.linalg.inv(np.diag(sd_vector))

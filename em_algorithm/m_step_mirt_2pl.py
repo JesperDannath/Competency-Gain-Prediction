@@ -112,7 +112,7 @@ class m_step_ga_mml(m_step):
             second_derivative = approx_fprime(
                 f=funct, xk=x_t, epsilon=1.4901161193847656e-22).diagonal()
             if 0 in list(second_derivative):
-                first_derivative[second_derivative == 0] = 0
+                first_derivative[second_derivative == 0] = 0 # TODO: Anstatt Nullrunde eher einen kleinen Schritt in die Richtung der First order Ableitung gehen. Learning Rate setzen, Terminierung Aussetzen 
             x_t = x_t - np.divide(first_derivative, second_derivative)  # ,
             # out=np.zeros_like(first_derivative), where=second_derivative == 0.0001)
             if (np.abs(x_t - x_t_last) < 0.1).all() or (iter >= max_iter):
