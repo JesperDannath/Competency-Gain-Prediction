@@ -15,12 +15,19 @@ class respondent_population():
         self.intervention=False
 
     def initialize_random_person_parameters(self):
-        #Evtl. nochmal Q^tQ nehmen.
-        #Evtl. auch nochmal die Recovery mit unabhängigen Fähigkeiten testen
-        cov = make_sparse_spd_matrix(
-            dim=self.latent_dimension, alpha=0.2, norm_diag=True, smallest_coef=-0.9, largest_coef=0.9)
-        self.latent_distribution = multivariate_normal(mean=np.zeros(self.latent_dimension), cov=cov)
-        return(cov)
+        #TODO:  nochmal Q^tQ nehmen und dann den gewichteten Mittelwert bilden!
+        #evtl. auch nochmal die Recovery mit unabhängigen Fähigkeiten testen
+        X = np.random.rand(self.latent_dimension, self.latent_dimension)
+        # cov = np.dot(X, X.transpose())
+        # sd_vector = np.sqrt(cov.diagonal())
+        # inv_sd_matrix = np.linalg.inv(np.diag(sd_vector))
+        # correlation_matrix = np.dot(
+        #     np.dot(inv_sd_matrix, cov), inv_sd_matrix)
+        correlation_matrix = make_sparse_spd_matrix(
+             dim=self.latent_dimension, alpha=0.2, norm_diag=True, smallest_coef=0.0, largest_coef=0.9)
+        correlation_matrix = np.round(np.abs(correlation_matrix), 4)
+        self.latent_distribution = multivariate_normal(mean=np.zeros(self.latent_dimension), cov=correlation_matrix)
+        return(correlation_matrix)
     
     def sample(self, sample_size:int) -> pd.DataFrame:
         """Create a random variable sample from a the defined latent_distribution

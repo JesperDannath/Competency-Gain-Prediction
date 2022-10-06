@@ -74,11 +74,11 @@ class e_step_ga_mml(e_step):
         if iter == -1:
             self.N = 1000
             self.qmc_variance_data = self.get_qmc_variance_data(
-                normalising_constant_array, response_data)  # TODO: Solve this more elegant with ifelse
+                normalising_constant_array, response_data)  # TODO: Solve this unecessary calculation more elegant with ifelse
         elif iter == 1:
             #self.N = 200 + 6**self.model.latent_dimension
-            self.N = 100*2**self.model.latent_dimension
-            self.qmc_variance_data = self.get_qmc_variance_data(
+            self.N = 75*2**self.model.latent_dimension
+            self.qmc_variance_data = self.get_qmc_variance_data(  # TODO: Try normal Monte-Carlo only for upper bound on variance!
                 normalising_constant_array, response_data)
         self.last_qmc_variance_data = self.qmc_variance_data
         self.qmc_variance_data = self.get_qmc_variance_data(
@@ -87,7 +87,8 @@ class e_step_ga_mml(e_step):
         #    last_qmc_data=self.last_qmc_variance_data, qmc_data=self.qmc_variance_data)
         p_change = ttest_ind(
             self.qmc_variance_data, self.last_qmc_variance_data, axis=0, equal_var=False).pvalue[0]
-        if (iter > 1) & (p_change > 0.05):  # TODO: Try one-sided alternative (Sigma should increase)
+        # TODO: Try one-sided alternative (Sigma should increase). Better don't do test if likelihood decreases
+        if (iter > 1) & (p_change > 0.05):
             self.N = int(self.N*1.2)
 
         print("Current Monte Carlo Sample size: {0}".format(self.N))

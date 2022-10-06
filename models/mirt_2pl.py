@@ -4,6 +4,7 @@ import pandas as pd
 import copy
 from scipy.stats import multivariate_normal
 from scipy.stats.qmc import MultivariateNormalQMC
+from scipy.optimize import minimize
 
 
 class mirt_2pl(irt_model):
@@ -112,25 +113,12 @@ class mirt_2pl(irt_model):
         if not qmc:
             sample = multivariate_normal.rvs(size=sample_size, mean=np.zeros(
                 self.latent_dimension), cov=self.person_parameters["covariance"])
+            if self.latent_dimension == 1:
+                sample = np.expand_dims(sample, axis=1)
         else:
             sample = MultivariateNormalQMC(mean=np.zeros(
                 self.latent_dimension), cov=self.person_parameters["covariance"]).random(sample_size)
-        if self.latent_dimension == 1:
-            sample = np.expand_dims(sample, axis=1)
         return(sample)
-
-    # def response_vector_probability(self, theta, response_vector: np.array, A=np.empty(0),
-    #                                 delta=np.empty(0)) -> np.array:
-    #     if A.size == 0:
-    #         A = self.item_parameters["discrimination_matrix"]
-    #     if delta.size == 0:
-    #         delta = self.item_parameters["intercept_vector"]
-    #     correct_response_probabilities = self.icc(
-    #         theta, A, delta)
-    #     probability_vector = np.add(np.multiply(correct_response_probabilities, response_vector),
-    #                                 np.multiply(np.subtract(1, correct_response_probabilities), np.subtract(1, response_vector)))
-    #     probability = np.prod(probability_vector, axis=1)
-    #     return(probability)
 
     def response_matrix_probability(self, theta, response_matrix: np.array, A=np.empty(0),
                                     delta=np.empty(0)) -> np.array:
@@ -241,3 +229,26 @@ class mirt_2pl(irt_model):
             np.mean(response_matrix_prob, axis=0))
         response_loglikelihood = np.sum(marginal_vector_probabilities)
         return(response_loglikelihood)
+
+    def answer_log_likelihood(self, theta, answer_vector):
+        ICC_values = self.icc(theta)
+        latent_density = self.latent_density(theta)
+        log_likelihood = np.dot(answer_vector, np.log(ICC_values)[0]) + np.dot(
+            (1-answer_vector), np.log(1-ICC_values)[0]) + np.log(latent_density)
+        return(log_likelihood)
+
+    def derive_competency(self, response_data: pd.DataFrame) -> np.array:
+        """Given the estimated item-parameters for a MIRT-Model and some response_data, this function will estimate the latent ability for every respondent.
+
+        Args:
+            response_data (pd.DataFrame or np.array): Response data from Item's 
+        """
+        competency_matrix = np.zeros(
+            shape=(response_data.shape[1], self.latent_dimension))
+        for i, response_pattern in enumerate(response_data.to_numpy()):
+            def nll(x): return -1*self.answer_log_likelihood(x,
+                                                             response_pattern)
+            x0 = self.sample_competency()
+            res = minimize(nll, x0=x0, method='BFGS')
+            competency_matrix[i] = res.x
+        return(competency_matrix)

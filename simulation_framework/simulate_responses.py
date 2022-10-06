@@ -29,6 +29,10 @@ class response_simulation():
         elif structure == "seperated":
             item_frequencies = multinomial.rvs(self.item_dimension, p=[
                                                1/self.latent_dimension for i in range(0, self.latent_dimension)])
+            if 0 in item_frequencies:
+                self.initialize_random_q_structured_matrix(
+                    structure="seperated")
+                return
             early_Q = []
             for i, frequency in enumerate(item_frequencies):
                 for repeat in range(0, frequency):
@@ -38,13 +42,18 @@ class response_simulation():
         elif structure == "pyramid":
             # Items mit mehr skills sind ggf. unwahrscheinlicher (linearer abstieg)
             early_Q = []
-            stair_indices = multinomial.rvs(self.item_dimension, p=[
+            stair_frequencies = multinomial.rvs(self.item_dimension, p=[
                 1/self.latent_dimension for i in range(0, self.latent_dimension)])
-            for i, frequency in enumerate(stair_indices):
+            if 0 in stair_frequencies:
+                self.initialize_random_q_structured_matrix(structure="pyramid")
+                return
+            for i, frequency in enumerate(stair_frequencies):
                 for repeat in range(0, frequency):
                     early_Q.append(
                         [1 if j <= i else 0 for j in range(0, self.latent_dimension)])
             early_Q = np.array(early_Q)
+        # TODO: Add structure Chained
+        # TODO: Add structure Full-Complexity
         else:
             raise Exception("Q-Matrix structure not known")
         self.early_model.set_parameters(

@@ -16,7 +16,7 @@ class em_algorithm():
         self.m_step = m_step
         self.model = model
 
-    def fit(self, data: pd.DataFrame, hyper_params: dict = None, max_iter=100) -> dict:
+    def fit(self, data: pd.DataFrame, hyper_params: dict = None, max_iter=100, stop_threshold=0.1) -> dict:
         """Fit the EM-Algorithm for some incomplete data for the specified incomplete_data_model.
 
         Args:
@@ -29,6 +29,7 @@ class em_algorithm():
         """
         converged = False
         i = 1
+        candidate_count = 0
         self.e_step.set_incomplete_data(data)
         current_parameters = {"item_parameters": self.model.item_parameters,
                               "person_parameters": self.model.person_parameters}
@@ -49,7 +50,7 @@ class em_algorithm():
                 data.to_numpy())
             marginal_loglikelihood_diff = abs(
                 marginal_loglikelihood - last_step_marginal_loglikelihood)
-            parameter_diff = self.give_parameter_diff(
+            abs_parameter_diff, parameter_diff = self.give_parameter_diff(
                 current_parameters=current_parameters, last_step_parameters=last_step_parameters)
             # if (parameter_diff <= 0.2) or (i >= max_iter-1):
             # Enforce that the Likelihood increases
@@ -58,7 +59,8 @@ class em_algorithm():
             #    self.model.set_parameters(last_step_parameters)
             #    current_parameters = copy.deepcopy(last_step_parameters)
             #    marginal_loglikelihood = last_step_marginal_loglikelihood.copy()
-            if (marginal_loglikelihood_diff <= 0.1) or (i >= max_iter):
+            # TODO: make stopping criterion in percent-change
+            if (marginal_loglikelihood_diff <= stop_threshold) or (i >= max_iter):
                 candidate_count += 1
                 if candidate_count >= 3:
                     converged = True
@@ -68,7 +70,7 @@ class em_algorithm():
             #    converged = True
             i = i+1
             print("Step: {0}: current parameter_diff: {1}, current marginal loglikelihood: {2}".format(
-                i, parameter_diff,  marginal_loglikelihood))
+                i, abs_parameter_diff,  marginal_loglikelihood))
             self.n_steps = i+1
 
     def give_parameter_diff(self, current_parameters, last_step_parameters):
@@ -83,6 +85,8 @@ class em_algorithm():
         last_sigma = last_step_parameters["person_parameters"]["covariance"]
         last_parameters_flat = np.concatenate(
             (last_A.flatten(), last_delta.flatten(), last_sigma.flatten()), axis=0)
-        parameter_diff = np.sum(
+        abs_parameter_diff = np.sum(
             np.abs(current_parameters_flat-last_parameters_flat))
-        return(parameter_diff)
+        parameter_diff = np.sum(
+            current_parameters_flat-last_parameters_flat)
+        return(abs_parameter_diff, parameter_diff)

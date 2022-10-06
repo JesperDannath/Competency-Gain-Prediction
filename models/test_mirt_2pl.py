@@ -1,6 +1,7 @@
 import unittest
 from mirt_2pl import mirt_2pl
 import numpy as np
+import pandas as pd
 
 
 class test_mirt_2pl(unittest.TestCase):
@@ -115,6 +116,17 @@ class test_mirt_2pl(unittest.TestCase):
         new_sigma = mirt_2pl_model.corr_to_sigma(corr)
         self.assertTrue(np.array_equal(new_sigma, np.array(
             [[1, 0.5, 0.1], [0.5, 1, 0.5], [0.1, 0.5, 1]])))
+
+    def test_derive_competency(self):
+        U = pd.DataFrame(np.array([[1, 1, 1],
+                                   [1, 0, 1],
+                                   [0, 0, 1]]))
+        # One-Dimensional
+        competency_1d = self.mirt_2pl_1d.derive_competency(U)
+        self.assertTrue(competency_1d.shape == (3, 1))
+        # Two-Dimensional
+        competency_1d = self.mirt_2pl_2d.derive_competency(U)
+        self.assertTrue(competency_1d.shape == (3, 3))
 
 
 if __name__ == '__main__':

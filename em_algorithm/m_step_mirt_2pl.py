@@ -111,8 +111,10 @@ class m_step_ga_mml(m_step):
             first_derivative = funct(x_t)
             second_derivative = approx_fprime(
                 f=funct, xk=x_t, epsilon=1.4901161193847656e-22).diagonal()
-            x_t = x_t - np.divide(first_derivative, second_derivative,
-                                  out=np.zeros_like(first_derivative), where=second_derivative != 0.0001)
+            if 0 in list(second_derivative):
+                first_derivative[second_derivative == 0] = 0
+            x_t = x_t - np.divide(first_derivative, second_derivative)  # ,
+            # out=np.zeros_like(first_derivative), where=second_derivative == 0.0001)
             if (np.abs(x_t - x_t_last) < 0.1).all() or (iter >= max_iter):
                 converged = True
             iter = iter+1
@@ -164,8 +166,9 @@ class m_step_ga_mml(m_step):
         x0 = self.model.person_parameters["covariance"][np.triu_indices(
             self.model.latent_dimension, k=1)]
 
-        if person_method == "ga":
-            if len(x0) > 0:
+        if len(x0) > 0:
+            if person_method == "ga":
+
                 # new_corr = self.genetic_algorithm(
                 #    q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
                 # if len(x0) > 1:
@@ -177,30 +180,29 @@ class m_step_ga_mml(m_step):
                 # new_sigma = minimize(func, x0=x0, method='BFGS').x
                 new_sigma = self.model.corr_to_sigma(new_corr)
                 log_likelihood += q_0(new_corr)
-            else:
-                new_sigma = self.model.person_parameters["covariance"]
-        elif person_method == "BFGS":
-            x0 = scipy.linalg.sqrtm(
-                self.model.person_parameters["covariance"]).flatten()
-            new_sigma_sqrt = minimize(
-                lambda x: -1*q_0_sqrt(x), jac=lambda x: -1*q_0_gradient_sqrt(x), x0=x0, method='BFGS').x
-            # new_sigma_sqrt = minimize(
-            #    lambda x: -1*q_0_sqrt(x), x0=x0, method='BFGS').x
-            new_sigma_sqrt = new_sigma_sqrt.reshape(
-                (self.model.latent_dimension, self.model.latent_dimension))
-            new_sigma = np.dot(new_sigma_sqrt, new_sigma_sqrt.transpose())
-            new_sigma = self.model.fix_sigma(new_sigma)
-            new_sigma = np.round(new_sigma, 4)
-        elif person_method == "newton_raphson":
-            x0 = scipy.linalg.sqrtm(
-                self.model.person_parameters["covariance"]).flatten()
-            new_sigma_sqrt = self.newton_raphson(
-                x0=x0, funct=q_0_gradient_sqrt)
-            new_sigma_sqrt = new_sigma_sqrt.reshape(
-                (self.model.latent_dimension, self.model.latent_dimension))
-            new_sigma = np.dot(new_sigma_sqrt, new_sigma_sqrt.transpose())
-            new_sigma = self.model.fix_sigma(new_sigma)
-            new_sigma = np.round(new_sigma, 4)
+
+            elif person_method == "BFGS":
+                x0 = scipy.linalg.sqrtm(
+                    self.model.person_parameters["covariance"]).flatten()
+                new_sigma_sqrt = minimize(
+                    lambda x: -1*q_0_sqrt(x), jac=lambda x: -1*q_0_gradient_sqrt(x), x0=x0, method='BFGS').x
+                new_sigma_sqrt = new_sigma_sqrt.reshape(
+                    (self.model.latent_dimension, self.model.latent_dimension))
+                new_sigma = np.dot(new_sigma_sqrt, new_sigma_sqrt.transpose())
+                new_sigma = self.model.fix_sigma(new_sigma)
+                new_sigma = np.round(new_sigma, 4)
+            elif person_method == "newton_raphson":
+                x0 = scipy.linalg.sqrtm(
+                    self.model.person_parameters["covariance"]).flatten()
+                new_sigma_sqrt = self.newton_raphson(
+                    x0=x0, funct=q_0_gradient_sqrt)
+                new_sigma_sqrt = new_sigma_sqrt.reshape(
+                    (self.model.latent_dimension, self.model.latent_dimension))
+                new_sigma = np.dot(new_sigma_sqrt, new_sigma_sqrt.transpose())
+                new_sigma = self.model.fix_sigma(new_sigma)
+                new_sigma = np.round(new_sigma, 4)
+        else:
+            new_sigma = self.model.person_parameters["covariance"]
         # Find new values for A and delta
         new_A = np.empty(
             shape=self.model.item_parameters["discrimination_matrix"].shape)
