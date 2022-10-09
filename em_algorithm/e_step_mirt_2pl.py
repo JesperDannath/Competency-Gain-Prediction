@@ -73,40 +73,27 @@ class e_step_ga_mml(e_step):
 
         if iter == -1:
             self.N = 1000
-            self.qmc_variance_data = self.get_qmc_variance_data(
+            self.mc_variance_data = self.get_mc_variance_data(
                 normalising_constant_array, response_data)  # TODO: Solve this unecessary calculation more elegant with ifelse
         elif iter == 1:
             #self.N = 200 + 6**self.model.latent_dimension
             self.N = 75*2**self.model.latent_dimension
-            self.qmc_variance_data = self.get_qmc_variance_data(  # TODO: Try normal Monte-Carlo only for upper bound on variance!
+            self.mc_variance_data = self.get_mc_variance_data(
                 normalising_constant_array, response_data)
-        self.last_qmc_variance_data = self.qmc_variance_data
-        self.qmc_variance_data = self.get_qmc_variance_data(
+        self.last_mc_variance_data = self.mc_variance_data
+        self.mc_variance_data = self.get_mc_variance_data(
             normalising_constant_array, response_data)
         # p_change = self.compare_qmc_data(
         #    last_qmc_data=self.last_qmc_variance_data, qmc_data=self.qmc_variance_data)
         p_change = ttest_ind(
-            self.qmc_variance_data, self.last_qmc_variance_data, axis=0, equal_var=False).pvalue[0]
+            self.mc_variance_data, self.last_mc_variance_data, axis=0, equal_var=False).pvalue[0]
         # TODO: Try one-sided alternative (Sigma should increase). Better don't do test if likelihood decreases
-        if (iter > 1) & (p_change > 0.05):
-            self.N = int(self.N*1.2)
+        if (iter > 1) & (p_change > 0.2):
+            self.N = int(self.N*1.1)
 
         print("Current Monte Carlo Sample size: {0}".format(self.N))
         theta_sample = self.model.sample_competency(
             sample_size=self.N, qmc=True)
-        # r_0_theta = r_0(theta_sample)
-        # r_item_theta_list = [r_item(item, theta_sample)
-        #                      for item in range(0, J)]
-
-        # q_0 = self.q_0(
-        #     theta=theta_sample, normalising_constant_array=normalising_constant_array, response_data=response_data)
-        # q_0_grad = self.q_0_gradient(theta=theta_sample, r_0_theta=r_0_theta)
-        # q_item_list = [self.q_item(item=j, theta=theta_sample, r_0_theta=r_0_theta,
-        #                            r_item_theta=r_item_theta_list[j]) for j in range(0, J)]
-
-        # q_function_dict = {"q_0": q_0, "q_0_grad": q_0_grad,
-        #                    "q_item_list": q_item_list}
-        # return(q_function_dict)
         return(self.prepare_q_functions(theta_sample, response_data, normalising_constant_array))
 
     def prepare_q_functions(self, theta_sample, response_data, normalising_constant_array):
@@ -148,7 +135,25 @@ class e_step_ga_mml(e_step):
     #         q_data[i] = np.array(q_values)
     #     return(q_data)
 
-    def get_qmc_variance_data(self, normalising_constant_array, response_data, sample_size=30): # TODO: Anderen Test nehmen der besser mit kleineren Stichproben ist (rank-sum)
+    def get_mc_variance_data(self, normalising_constant_array, response_data):
+        sigma = self.model.person_parameters["covariance"]
+        A = self.model.item_parameters["discrimination_matrix"]
+        delta = self.model.item_parameters["intercept_vector"]
+        J = response_data.shape[1]
+        theta_sample = self.model.sample_competency(
+            sample_size=self.N, qmc=False)
+        q_0 = self.q_0(
+            theta=theta_sample, normalising_constant_array=normalising_constant_array, response_data=response_data)
+        q_values = q_0(sigma, return_sample=True)[1].reshape((self.N, 1))
+        mean = np.mean(q_values)
+        sd = np.sqrt(np.var(q_values))
+        error = (sd*1.645)/np.sqrt(self.N)
+        ci = (mean - error, mean + error)
+        return(q_values)
+
+    # TODO: Anderen Test nehmen der besser mit kleineren Stichproben ist (rank-sum)
+
+    def get_qmc_variance_data(self, normalising_constant_array, response_data, sample_size=30):
         sigma = self.model.person_parameters["covariance"]
         A = self.model.item_parameters["discrimination_matrix"]
         delta = self.model.item_parameters["intercept_vector"]
@@ -189,9 +194,11 @@ class e_step_ga_mml(e_step):
         denominator = normalising_constant_array
         sum = np.sum(np.divide(numerator, denominator), axis=1)
 
-        def func(sigma):
+        def func(sigma, return_sample=False):
             factor = np.log(self.model.latent_density(theta, sigma=sigma))
             product = np.multiply(factor, sum)
+            if return_sample:
+                return(np.mean(product), product)
             return(np.mean(product))
         return(func)
 
