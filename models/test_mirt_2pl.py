@@ -117,7 +117,7 @@ class test_mirt_2pl(unittest.TestCase):
         self.assertTrue(np.array_equal(new_sigma, np.array(
             [[1, 0.5, 0.1], [0.5, 1, 0.5], [0.1, 0.5, 1]])))
 
-    def test_derive_competency(self):
+    def test_predict_competency(self):
         U = pd.DataFrame(np.array([[1, 1, 1],
                                    [1, 0, 1],
                                    [0, 0, 1]]))

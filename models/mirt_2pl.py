@@ -2,6 +2,7 @@ from irt_model import irt_model
 import numpy as np
 import pandas as pd
 import copy
+import scipy
 from scipy.stats import multivariate_normal
 from scipy.stats.qmc import MultivariateNormalQMC
 from scipy.optimize import minimize
@@ -72,6 +73,7 @@ class mirt_2pl(irt_model):
             print(sigma)
             raise Exception("Covariance is not symmetric")
         if not np.all(np.linalg.eigvals(sigma) >= 0):
+            print(sigma)
             raise Exception("New Covariance not positive semidefinite")
         return(True)
 
@@ -113,11 +115,13 @@ class mirt_2pl(irt_model):
         if not qmc:
             sample = multivariate_normal.rvs(size=sample_size, mean=np.zeros(
                 self.latent_dimension), cov=self.person_parameters["covariance"])
-            if self.latent_dimension == 1:
-                sample = np.expand_dims(sample, axis=1)
+            # if self.latent_dimension == 1:
+            #    sample = np.expand_dims(sample, axis=1)
         else:
             sample = MultivariateNormalQMC(mean=np.zeros(
-                self.latent_dimension), cov=self.person_parameters["covariance"]).random(sample_size)
+                self.latent_dimension), cov=self.person_parameters["covariance"], engine=None).random(sample_size)  # scipy.stats.qmc.Halton(d=self.latent_dimension)).random(sample_size)
+        # Ensure correct dimensionality if sample_siz==1 or latent_dim==1
+        sample = sample.reshape((sample_size, self.latent_dimension))
         return(sample)
 
     def response_matrix_probability(self, theta, response_matrix: np.array, A=np.empty(0),
@@ -218,7 +222,12 @@ class mirt_2pl(irt_model):
         else:
             mask = self.item_parameters["q_matrix"][item].astype(np.bool)
             a_item = np.zeros(mask.shape)
-            np.place(a_item, mask=mask, vals=discriminations)
+            try:
+                np.place(a_item, mask=mask, vals=discriminations)
+            except ValueError:
+                print("mask: {0}".format(mask))
+                print("Discriminations: {0}".format(discriminations))
+                raise Exception("Could not fill zero Discriminations")
             return(a_item)
 
     def marginal_response_loglikelihood(self, response_data, N=1000):
@@ -237,7 +246,7 @@ class mirt_2pl(irt_model):
             (1-answer_vector), np.log(1-ICC_values)[0]) + np.log(latent_density)
         return(log_likelihood)
 
-    def derive_competency(self, response_data: pd.DataFrame) -> np.array:
+    def predict_competency(self, response_data: pd.DataFrame) -> np.array:
         """Given the estimated item-parameters for a MIRT-Model and some response_data, this function will estimate the latent ability for every respondent.
 
         Args:

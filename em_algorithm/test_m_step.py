@@ -62,6 +62,18 @@ class test_mirt_2pl(unittest.TestCase):
             fitness_function=wrapped_fitness_function, x0=x0, population_size=10)
         print(new_parameters_dict)
 
+    def test_newton_raphson(self):
+        def q_func(input):
+            return(-1*(input[0]**2 + input[1]**2))
+
+        def q_func_grad(input):
+            return(np.array([-2*input[0], -2*input[1]]))
+        x0 = np.array([10, -10])
+        result = self.m_step_2pl.newton_raphson(funct=q_func_grad, x0=x0)
+        diff = np.sqrt(np.sum(np.square(result) -
+                              np.square(np.array([0.0, 0.0]))))
+        self.assertTrue(diff < 0.01)
+
     def test_step_ga_mirt_2pl(self):
         # Test functionality of step function
         self.m_step_2pl.step(pe_functions=self.result_function_dict)

@@ -45,7 +45,7 @@ class m_step_ga_mml(m_step):
                 population=list(range(0, len(individual1))), k=int(len(individual1)/2))
             new_individual = np.array([individual2[i] if i in crossover_indices else individual1[i]
                                        for i in range(0, len(individual1))])
-            # TODO: Better hanle constraint case
+            # TODO: Better handle constraint case
             constraint_function(new_individual)
             return(new_individual)
 
@@ -102,27 +102,32 @@ class m_step_ga_mml(m_step):
             iter += 1
         return(population_base[0][1])
 
-    def newton_raphson(self, funct, x0, max_iter=1000):
+    def newton_raphson(self, funct, x0, max_iter=1000, alpha=0.001):
         x_t = x0.copy()
         converged = False
         iter = 0
         while not converged:
+            skip_terminate = False
             x_t_last = x_t.copy()
             first_derivative = funct(x_t)
-            second_derivative = approx_fprime(
-                f=funct, xk=x_t, epsilon=1.4901161193847656e-22).diagonal()
+            second_derivative = np.array(approx_fprime(
+                f=funct, xk=x_t, epsilon=1.4901161193847656e-22).diagonal())
             if 0 in list(second_derivative):
-                first_derivative[second_derivative == 0] = 0 # TODO: Anstatt Nullrunde eher einen kleinen Schritt in die Richtung der First order Ableitung gehen. Learning Rate setzen, Terminierung Aussetzen 
+                # TODO: Anstatt Nullrunde eher einen kleinen Schritt in die Richtung der First order Ableitung gehen. Learning Rate setzen, Terminierung Aussetzen
+                first_derivative[second_derivative == 0] = -1 * alpha * \
+                    first_derivative[second_derivative == 0]
+                second_derivative[second_derivative == 0] = 1
+                skip_terminate = True
             x_t = x_t - np.divide(first_derivative, second_derivative)  # ,
             # out=np.zeros_like(first_derivative), where=second_derivative == 0.0001)
-            if (np.abs(x_t - x_t_last) < 0.1).all() or (iter >= max_iter):
+            if ((np.abs(x_t - x_t_last) < 0.1).all() & (not skip_terminate)) or (iter >= max_iter):
                 converged = True
             iter = iter+1
         return(x_t)
 
     def step(self, pe_functions: dict, person_method="newton_raphson", item_method="ga"):
         # Find the new value for Sigma
-        print("Maximize Q-0")
+        # print("Maximize Q-0")
         # The only parameters we need to optimise are the correlations
         # TODO: Matrix X^tX = sigma benutzen um p.s.d zu enforcen
         log_likelihood = 0.0
@@ -194,6 +199,7 @@ class m_step_ga_mml(m_step):
             elif person_method == "newton_raphson":
                 x0 = scipy.linalg.sqrtm(
                     self.model.person_parameters["covariance"]).flatten()
+                #x0 = scipy.linalg.cholesky(self.model.person_parameters["covariance"]).flatten()
                 new_sigma_sqrt = self.newton_raphson(
                     x0=x0, funct=q_0_gradient_sqrt)
                 new_sigma_sqrt = new_sigma_sqrt.reshape(
@@ -208,7 +214,7 @@ class m_step_ga_mml(m_step):
             shape=self.model.item_parameters["discrimination_matrix"].shape)
         new_delta = np.empty(
             shape=self.model.item_parameters["intercept_vector"].shape)
-        print("Maximize the Q_i's")
+        # print("Maximize the Q_i's")
         for item in range(0, self.model.item_dimension):
             a_init = self.model.item_parameters["discrimination_matrix"][item]
             delta_init = self.model.item_parameters["intercept_vector"][item]
@@ -225,7 +231,8 @@ class m_step_ga_mml(m_step):
 
             # if len(x0) == 1:
             new_item_parameters = self.genetic_algorithm(
-                fitness_function=q_item, x0=x0, constraint_function=lambda arg: np.all(arg[0:len(arg)-1] > 0))
+                fitness_function=q_item, x0=x0, constraint_function=lambda arg: np.all(arg[0:(len(arg)-1)] > 0))
+            # fitness_function=q_item, x0=x0, constraint_function=lambda arg: np.all(arg[0:len(arg)-1] > 0))
             # else:
             #     new_item_parameters = cma.CMAEvolutionStrategy(
             #         x0=x0, sigma0=2).optimize(lambda x: -1*q_item(x), maxfun=1000, n_jobs=0).result.xfavorite
