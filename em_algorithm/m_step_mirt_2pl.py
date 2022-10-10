@@ -114,9 +114,9 @@ class m_step_ga_mml(m_step):
                 f=funct, xk=x_t, epsilon=1.4901161193847656e-22).diagonal())
             if 0 in list(second_derivative):
                 # TODO: Anstatt Nullrunde eher einen kleinen Schritt in die Richtung der First order Ableitung gehen. Learning Rate setzen, Terminierung Aussetzen
-                first_derivative[second_derivative == 0] = -1 * alpha * \
-                    first_derivative[second_derivative == 0]
-                second_derivative[second_derivative == 0] = 1
+                first_derivative[np.abs(second_derivative) <= 0.00001] = -1 * alpha * \
+                    first_derivative[np.abs(second_derivative) <= 0.00001]
+                second_derivative[np.abs(second_derivative) <= 0.00001] = 1
                 skip_terminate = True
             x_t = x_t - np.divide(first_derivative, second_derivative)  # ,
             # out=np.zeros_like(first_derivative), where=second_derivative == 0.0001)
@@ -152,6 +152,16 @@ class m_step_ga_mml(m_step):
                 sigma, newshape=(
                     self.model.latent_dimension, self.model.latent_dimension)))
 
+        def q_0_cholesky(cholesky_sigma_vector):
+            D = self.model.latent_dimension
+            cholesky_sigma = np.identity(D)
+            cholesky_sigma[np.tril_indices_from(
+                cholesky_sigma)] = cholesky_sigma_vector
+            sigma = np.dot(cholesky_sigma, cholesky_sigma.transpose())
+            return pe_functions["q_0"](np.reshape(
+                sigma, newshape=(
+                    self.model.latent_dimension, self.model.latent_dimension)))
+
         def q_0_gradient_sqrt(sqrt_sigma_vector):
             D = self.model.latent_dimension
             sqrt_sigma = sqrt_sigma_vector.reshape((D, D))
@@ -166,6 +176,27 @@ class m_step_ga_mml(m_step):
             #    sigma), 2*np.dot(sqrt_sigma, np.ones(sqrt_sigma.shape)))
             gradient = np.sum(np.sum(np.multiply(
                 pe_functions["q_0_grad"](sigma), chain2), axis=1), axis=1)
+            return(gradient.flatten())
+
+        def q_0_gradient_cholesky(cholesky_sigma_vector):
+            D = self.model.latent_dimension
+            cholesky_sigma = np.identity(D)
+            # np.place(cholesky_sigma,
+            #         mask=np.tril(np.ones(D), k=1).astype(np.bool), vals=cholesky_sigma_vector)
+            cholesky_sigma[np.tril_indices_from(
+                cholesky_sigma)] = cholesky_sigma_vector
+            sigma = np.dot(cholesky_sigma, cholesky_sigma.transpose())
+            # Apply chain rule
+            # gradient = np.dot(
+            #    np.dot(sqrt_sigma, pe_functions["q_0_grad"](sigma)), sqrt_sigma.transpose())
+            chain2 = approx_fprime(f=lambda C: np.dot(
+                C.reshape((D, D)), C.reshape((D, D)).transpose()).flatten(), xk=cholesky_sigma.flatten(),
+                epsilon=1.4901161193847656e-20).reshape((D**2, D, D))
+            # gradient = np.dot(pe_functions["q_0_grad"](
+            #    sigma), 2*np.dot(sqrt_sigma, np.ones(sqrt_sigma.shape)))
+            gradient = np.sum(np.sum(np.multiply(
+                pe_functions["q_0_grad"](sigma), chain2), axis=1), axis=1).reshape((D, D))
+            gradient = gradient[np.tril_indices_from(gradient)]
             return(gradient.flatten())
 
         x0 = self.model.person_parameters["covariance"][np.triu_indices(
@@ -187,27 +218,51 @@ class m_step_ga_mml(m_step):
                 log_likelihood += q_0(new_corr)
 
             elif person_method == "BFGS":
-                x0 = scipy.linalg.sqrtm(
-                    self.model.person_parameters["covariance"]).flatten()
-                new_sigma_sqrt = minimize(
-                    lambda x: -1*q_0_sqrt(x), jac=lambda x: -1*q_0_gradient_sqrt(x), x0=x0, method='BFGS').x
-                new_sigma_sqrt = new_sigma_sqrt.reshape(
-                    (self.model.latent_dimension, self.model.latent_dimension))
-                new_sigma = np.dot(new_sigma_sqrt, new_sigma_sqrt.transpose())
+                x0 = scipy.linalg.cholesky(
+                    self.model.person_parameters["covariance"], lower=True)
+                x0 = x0[np.tril_indices_from(x0)]
+                new_sigma_cholesky_vector = minimize(
+                    lambda x: -1*q_0_cholesky(x), jac=lambda x: -1*q_0_gradient_cholesky(x), x0=x0, method='BFGS').x
+                new_sigma_cholesky = np.identity(self.model.latent_dimension)
+                new_sigma_cholesky[np.tril_indices_from(
+                    new_sigma_cholesky)] = new_sigma_cholesky_vector
+                new_sigma = np.dot(new_sigma_cholesky,
+                                   new_sigma_cholesky.transpose())
                 new_sigma = self.model.fix_sigma(new_sigma)
-                new_sigma = np.round(new_sigma, 4)
+
+                def trunc(values, decs=0):
+                    return np.trunc(values*10**decs)/(10**decs)
+                print(new_sigma)
+                new_sigma = trunc(new_sigma, 4)
             elif person_method == "newton_raphson":
-                x0 = scipy.linalg.sqrtm(
-                    self.model.person_parameters["covariance"]).flatten()
-                #x0 = scipy.linalg.cholesky(self.model.person_parameters["covariance"]).flatten()
-                new_sigma_sqrt = self.newton_raphson(
-                    x0=x0, funct=q_0_gradient_sqrt)
-                new_sigma_sqrt = new_sigma_sqrt.reshape(
-                    (self.model.latent_dimension, self.model.latent_dimension))
-                new_sigma = np.dot(new_sigma_sqrt, new_sigma_sqrt.transpose())
+                # x0 = scipy.linalg.sqrtm(
+                #    self.model.person_parameters["covariance"]).flatten()
+                x0 = scipy.linalg.cholesky(
+                    self.model.person_parameters["covariance"], lower=True)  # TODO: Change everything to X^T X (not urgent)
+                x0 = x0[np.tril_indices_from(x0)]
+                new_sigma_cholesky_vector = self.newton_raphson(
+                    x0=x0, funct=q_0_gradient_cholesky)
+                new_sigma_cholesky = np.identity(self.model.latent_dimension)
+                new_sigma_cholesky[np.tril_indices_from(
+                    new_sigma_cholesky)] = new_sigma_cholesky_vector
+                new_sigma = np.dot(new_sigma_cholesky,
+                                   new_sigma_cholesky.transpose())
                 new_sigma = self.model.fix_sigma(new_sigma)
-                new_sigma = np.round(new_sigma, 4)
+
+                def trunc(values, decs=0):
+                    return np.trunc(values*10**decs)/(10**decs)
+                print(new_sigma)
+                new_sigma = trunc(new_sigma, 4)
         else:
+            new_sigma = self.model.person_parameters["covariance"]
+        # Ensure that new_sigma is positive
+        if len(new_sigma[new_sigma < 0]) > 0:
+            new_sigma[new_sigma < 0] = 0
+        # Ensure that sigma is valid
+        try:
+            self.model.check_sigma(new_sigma)
+        except Exception:
+            print("Invalid Covariance encountered, trying last step covariance")
             new_sigma = self.model.person_parameters["covariance"]
         # Find new values for A and delta
         new_A = np.empty(
