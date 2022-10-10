@@ -24,7 +24,7 @@ class respondent_population():
         # correlation_matrix = np.dot(
         #     np.dot(inv_sd_matrix, cov), inv_sd_matrix)
         correlation_matrix = make_sparse_spd_matrix(
-             dim=self.latent_dimension, alpha=0.2, norm_diag=True, smallest_coef=0.0, largest_coef=0.9)
+             dim=self.latent_dimension, alpha=0.1, norm_diag=True, smallest_coef=0.0, largest_coef=0.9)
         self.latent_distribution = multivariate_normal(mean=np.zeros(self.latent_dimension), cov=correlation_matrix)
         correlation_matrix = np.round(np.abs(correlation_matrix), 4)
         #Calculate COV-Matrix implied by the Q-Matrix

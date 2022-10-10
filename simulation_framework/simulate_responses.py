@@ -111,30 +111,54 @@ class response_simulation():
     #     self.early_model.item_parameters.update(item_parameters)
     #     return(self.early_model.item_parameters)
 
+    # # TODO: Prohibit all-zero rows
+    # def initialize_random_item_parameters(self, Q=np.empty(0)):
+    #     if Q.size == 0:
+    #         Q = self.early_model.item_parameters["q_matrix"]
+    #     # 1. Sample relative difficulties
+    #     relative_difficulties_sample = np.sqrt(1)*self.population.sample(
+    #         self.item_dimension)
+    #     # t-Verteilung oder Gleichverteilung mal ausprobieren
+    #     A = np.zeros((self.item_dimension, self.latent_dimension))
+    #     delta = np.zeros(self.item_dimension)
+    #     # 2. Get smallest relative difficulty per item
+    #     for i in range(0, self.item_dimension):
+    #         rel_item = relative_difficulties_sample[i]
+    #         # np.where(rel_item >= np.median(rel_item))[0][0]
+    #         rel_min = np.where(rel_item == np.min(rel_item))[0]
+    #         # 3. Sample a_median
+    #         a_min = np.exp(multivariate_normal(
+    #             mean=0.5*np.ones(1), cov=np.identity(1)).rvs())
+    #         # 4. Calculate delta
+    #         delta[i] = -a_min*rel_item[rel_min]
+    #         # 5. Calculate all other a_{i,j}'s
+    #         A[i] = -delta[i]/rel_item
+    #     item_parameters = {"discrimination_matrix": np.multiply(A, Q),
+    #                        "intercept_vector": delta}
+    #     self.early_model.item_parameters.update(item_parameters)
+    #     if len(A[A <= 0]) > 0:
+    #         raise Exception("Negative Discriminations sampled")
+    #     return(self.early_model.item_parameters)
+
     # TODO: Prohibit all-zero rows
     def initialize_random_item_parameters(self, Q=np.empty(0)):
         if Q.size == 0:
             Q = self.early_model.item_parameters["q_matrix"]
         # 1. Sample relative difficulties
-        relative_difficulties_sample = np.sqrt(1)*self.population.sample(
-            self.item_dimension)
+        delta = multivariate_normal(mean=np.zeros(
+            1), cov=np.ones(1)).rvs(self.item_dimension)
         # t-Verteilung oder Gleichverteilung mal ausprobieren
         A = np.zeros((self.item_dimension, self.latent_dimension))
-        delta = np.zeros(self.item_dimension)
+        #delta = np.zeros(self.item_dimension)
         # 2. Get smallest relative difficulty per item
         for i in range(0, self.item_dimension):
-            rel_item = relative_difficulties_sample[i]
-            rel_min = np.where(rel_item >= np.median(rel_item))[0][0]
-            # 3. Sample a_median
-            a_min = np.exp(multivariate_normal(
-                mean=0*np.ones(1), cov=np.identity(1)).rvs())
-            # 4. Calculate delta
-            delta[i] = -a_min*rel_item[rel_min]
-            # 5. Calculate all other a_{i,j}'s
-            A[i] = -delta[i]/rel_item
+            A[i] = np.exp(multivariate_normal(
+                mean=1*np.ones(self.latent_dimension), cov=0.5*np.identity(self.latent_dimension)).rvs())
         item_parameters = {"discrimination_matrix": np.multiply(A, Q),
                            "intercept_vector": delta}
         self.early_model.item_parameters.update(item_parameters)
+        if len(A[A <= 0]) > 0:
+            raise Exception("Negative Discriminations sampled")
         return(self.early_model.item_parameters)
 
     def sample(self, sample_size) -> pd.DataFrame:
@@ -148,6 +172,10 @@ class response_simulation():
         sample["sample_size"] = sample_size
         sample["latent_dimension"] = self.latent_dimension
         sample["item_dimension"] = self.item_dimension
+        if list(np.ones(sample_size)) in list(sample["early_responses"].transpose()):
+            raise Exception("All correct item identified")
+        if list(np.zeros(sample_size)) in list(sample["early_responses"].transpose()):
+            raise Exception("All incorrect item identified")
         return(sample)
 
     def get_item_parameters(self):
