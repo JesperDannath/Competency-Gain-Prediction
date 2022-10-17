@@ -27,6 +27,10 @@ class mirt_2pl(irt_model):
             Q = np.ones((self.item_dimension, self.latent_dimension))
         if A.size == 0:
             A = Q.copy()
+        else:
+            if A.shape != Q.shape:
+                raise Exception(
+                    "Wrong item Dimension specified or shapes of A and Q don't match")
         if delta.size == 0:
             delta = np.ones(self.item_dimension)
         if sigma.size == 0:
@@ -105,11 +109,17 @@ class mirt_2pl(irt_model):
             np.divide(1, np.add(1, np.exp(np.multiply(-1, linear_predictor)))))
         return(p)
 
-    def latent_density(self, theta: np.array, sigma: np.array = np.empty(0)):
+    def latent_density(self, theta: np.array, sigma: np.array = np.empty(0), mu: np.array = np.empty(0)):
         if sigma.size == 0:
             sigma = self.person_parameters["covariance"]
-        return(multivariate_normal.pdf(x=theta, mean=np.zeros(
-            self.latent_dimension), cov=sigma))
+        if mu.size == 0:
+            mu = np.zeros(self.latent_dimension)
+        if len(mu.shape) == 2:
+            pdf = np.zeros((mu.shape[0], theta.shape[0]))
+            for i, mean in enumerate(mu):  # TODO: Make this faster
+                pdf[i] = multivariate_normal.pdf(x=theta, mean=mean, cov=sigma)
+            return(pdf)
+        return(multivariate_normal.pdf(x=theta, mean=mu, cov=sigma))
 
     def sample_competency(self, sample_size=1, qmc=False):
         if not qmc:
@@ -119,7 +129,7 @@ class mirt_2pl(irt_model):
             #    sample = np.expand_dims(sample, axis=1)
         else:
             sample = MultivariateNormalQMC(mean=np.zeros(
-                self.latent_dimension), cov=self.person_parameters["covariance"], engine=None).random(sample_size)  # scipy.stats.qmc.Halton(d=self.latent_dimension)).random(sample_size)
+                self.latent_dimension), cov=self.person_parameters["covariance"], engine=None).random(sample_size)
         # Ensure correct dimensionality if sample_siz==1 or latent_dim==1
         sample = sample.reshape((sample_size, self.latent_dimension))
         return(sample)
