@@ -132,72 +132,45 @@ class m_step_ga_mml(m_step):
         # TODO: Matrix X^tX = sigma benutzen um p.s.d zu enforcen
         log_likelihood = 0.0
 
-        def q_0(corr_vector):
-            sigma = self.model.corr_to_sigma(corr_vector)
-            return pe_functions["q_0"](np.reshape(
-                sigma, newshape=(
-                    self.model.latent_dimension, self.model.latent_dimension)))
+        # def q_0(corr_vector):
+        #     sigma = self.model.corr_to_sigma(corr_vector)
+        #     return pe_functions["q_0"](np.reshape(
+        #         sigma, newshape=(
+        #             self.model.latent_dimension, self.model.latent_dimension)))
 
-        # def q_0_gradient(corr_vector):
-        #     sigma = self.model.corr_to_sigma(corr_vector).reshape((
-        #         self.model.latent_dimension, self.model.latent_dimension))
-        #     gradient = pe_functions["q_0_grad"](sigma)
-        #     return(gradient[np.triu_indices_from(gradient, k=1)])
+        # def q_0_cholesky(cholesky_sigma_vector):
+        #     D = self.model.latent_dimension
+        #     cholesky_sigma = np.identity(D)
+        #     cholesky_sigma[np.tril_indices_from(
+        #         cholesky_sigma)] = cholesky_sigma_vector
+        #     sigma = np.dot(cholesky_sigma, cholesky_sigma.transpose())
+        #     return pe_functions["q_0"](np.reshape(
+        #         sigma, newshape=(
+        #             self.model.latent_dimension, self.model.latent_dimension)))
 
-        def q_0_sqrt(sqrt_sigma_vector):
-            sqrt_sigma = sqrt_sigma_vector.reshape(
-                (self.model.latent_dimension, self.model.latent_dimension))
-            sigma = np.dot(sqrt_sigma, sqrt_sigma.transpose())
-            return pe_functions["q_0"](np.reshape(
-                sigma, newshape=(
-                    self.model.latent_dimension, self.model.latent_dimension)))
-
-        def q_0_cholesky(cholesky_sigma_vector):
-            D = self.model.latent_dimension
-            cholesky_sigma = np.identity(D)
-            cholesky_sigma[np.tril_indices_from(
-                cholesky_sigma)] = cholesky_sigma_vector
-            sigma = np.dot(cholesky_sigma, cholesky_sigma.transpose())
-            return pe_functions["q_0"](np.reshape(
-                sigma, newshape=(
-                    self.model.latent_dimension, self.model.latent_dimension)))
-
-        def q_0_gradient_sqrt(sqrt_sigma_vector):
-            D = self.model.latent_dimension
-            sqrt_sigma = sqrt_sigma_vector.reshape((D, D))
-            sigma = np.dot(sqrt_sigma, sqrt_sigma.transpose())
-            # Apply chain rule
-            # gradient = np.dot(
-            #    np.dot(sqrt_sigma, pe_functions["q_0_grad"](sigma)), sqrt_sigma.transpose())
-            chain2 = approx_fprime(f=lambda C: np.dot(
-                C.reshape((D, D)), C.reshape((D, D)).transpose()).flatten(), xk=sqrt_sigma_vector,
-                epsilon=1.4901161193847656e-20).reshape((D**2, D, D))
-            # gradient = np.dot(pe_functions["q_0_grad"](
-            #    sigma), 2*np.dot(sqrt_sigma, np.ones(sqrt_sigma.shape)))
-            gradient = np.sum(np.sum(np.multiply(
-                pe_functions["q_0_grad"](sigma), chain2), axis=1), axis=1)
-            return(gradient.flatten())
-
-        def q_0_gradient_cholesky(cholesky_sigma_vector):
-            D = self.model.latent_dimension
-            cholesky_sigma = np.identity(D)
-            # np.place(cholesky_sigma,
-            #         mask=np.tril(np.ones(D), k=1).astype(np.bool), vals=cholesky_sigma_vector)
-            cholesky_sigma[np.tril_indices_from(
-                cholesky_sigma)] = cholesky_sigma_vector
-            sigma = np.dot(cholesky_sigma, cholesky_sigma.transpose())
-            # Apply chain rule
-            # gradient = np.dot(
-            #    np.dot(sqrt_sigma, pe_functions["q_0_grad"](sigma)), sqrt_sigma.transpose())
-            chain2 = approx_fprime(f=lambda C: np.dot(
-                C.reshape((D, D)), C.reshape((D, D)).transpose()).flatten(), xk=cholesky_sigma.flatten(),
-                epsilon=1.4901161193847656e-20).reshape((D**2, D, D))
-            # gradient = np.dot(pe_functions["q_0_grad"](
-            #    sigma), 2*np.dot(sqrt_sigma, np.ones(sqrt_sigma.shape)))
-            gradient = np.sum(np.sum(np.multiply(
-                pe_functions["q_0_grad"](sigma), chain2), axis=1), axis=1).reshape((D, D))
-            gradient = gradient[np.tril_indices_from(gradient)]
-            return(gradient.flatten())
+        # def q_0_gradient_cholesky(cholesky_sigma_vector):
+        #     D = self.model.latent_dimension
+        #     cholesky_sigma = np.identity(D)
+        #     # np.place(cholesky_sigma,
+        #     #         mask=np.tril(np.ones(D), k=1).astype(np.bool), vals=cholesky_sigma_vector)
+        #     cholesky_sigma[np.tril_indices_from(
+        #         cholesky_sigma)] = cholesky_sigma_vector
+        #     sigma = np.dot(cholesky_sigma, cholesky_sigma.transpose())
+        #     # Apply chain rule
+        #     # gradient = np.dot(
+        #     #    np.dot(sqrt_sigma, pe_functions["q_0_grad"](sigma)), sqrt_sigma.transpose())
+        #     chain2 = approx_fprime(f=lambda C: np.dot(
+        #         C.reshape((D, D)), C.reshape((D, D)).transpose()).flatten(), xk=cholesky_sigma.flatten(),
+        #         epsilon=1.4901161193847656e-20).reshape((D**2, D, D))
+        #     # gradient = np.dot(pe_functions["q_0_grad"](
+        #     #    sigma), 2*np.dot(sqrt_sigma, np.ones(sqrt_sigma.shape)))
+        #     gradient = np.sum(np.sum(np.multiply(
+        #         pe_functions["q_0_grad"](sigma), chain2), axis=1), axis=1).reshape((D, D))
+        #     gradient = gradient[np.tril_indices_from(gradient)]
+        #     return(gradient.flatten())
+        q_0 = self.q_0(pe_functions)
+        q_0_cholesky = self.q_0_cholesky(pe_functions)
+        q_0_gradient_cholesky = self.q_0_gradient_cholesky(pe_functions)
 
         x0 = self.model.person_parameters["covariance"][np.triu_indices(
             self.model.latent_dimension, k=1)]
@@ -300,3 +273,46 @@ class m_step_ga_mml(m_step):
             new_delta[item] = new_delta_item
         return({"item_parameters": {"discrimination_matrix": new_A, "intercept_vector": new_delta},
                 "person_parameters": {"covariance": new_sigma}}, log_likelihood)
+
+    def q_0(self, pe_functions):
+        def func(corr_vector):
+            sigma = self.model.corr_to_sigma(corr_vector)
+            return pe_functions["q_0"](np.reshape(
+                sigma, newshape=(
+                    self.model.latent_dimension, self.model.latent_dimension)))
+        return(func)
+
+    def q_0_cholesky(self, pe_functions):
+        def func(cholesky_sigma_vector):
+            D = self.model.latent_dimension
+            cholesky_sigma = np.identity(D)
+            cholesky_sigma[np.tril_indices_from(
+                cholesky_sigma)] = cholesky_sigma_vector
+            sigma = np.dot(cholesky_sigma, cholesky_sigma.transpose())
+            return pe_functions["q_0"](np.reshape(
+                sigma, newshape=(
+                    self.model.latent_dimension, self.model.latent_dimension)))
+        return(func)
+
+    def q_0_gradient_cholesky(self, pe_functions):
+        def func(cholesky_sigma_vector):
+            D = self.model.latent_dimension
+            cholesky_sigma = np.identity(D)
+            # np.place(cholesky_sigma,
+            #         mask=np.tril(np.ones(D), k=1).astype(np.bool), vals=cholesky_sigma_vector)
+            cholesky_sigma[np.tril_indices_from(
+                cholesky_sigma)] = cholesky_sigma_vector
+            sigma = np.dot(cholesky_sigma, cholesky_sigma.transpose())
+            # Apply chain rule
+            # gradient = np.dot(
+            #    np.dot(sqrt_sigma, pe_functions["q_0_grad"](sigma)), sqrt_sigma.transpose())
+            chain2 = approx_fprime(f=lambda C: np.dot(
+                C.reshape((D, D)), C.reshape((D, D)).transpose()).flatten(), xk=cholesky_sigma.flatten(),
+                epsilon=1.4901161193847656e-20).reshape((D**2, D, D))
+            # gradient = np.dot(pe_functions["q_0_grad"](
+            #    sigma), 2*np.dot(sqrt_sigma, np.ones(sqrt_sigma.shape)))
+            gradient = np.sum(np.sum(np.multiply(
+                pe_functions["q_0_grad"](sigma), chain2), axis=1), axis=1).reshape((D, D))
+            gradient = gradient[np.tril_indices_from(gradient)]
+            return(gradient.flatten())
+        return(func)
