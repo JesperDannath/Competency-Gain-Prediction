@@ -113,11 +113,12 @@ class m_step_ga_mml(m_step):
             second_derivative = np.array(approx_fprime(
                 f=funct, xk=x_t, epsilon=1.4901161193847656e-22).diagonal())
             if 0 in list(second_derivative):
+                if np.any(np.where(first_derivative == 0)[0] != np.where(second_derivative == 0)[0]):
+                    skip_terminate = True
                 # TODO: Anstatt Nullrunde eher einen kleinen Schritt in die Richtung der First order Ableitung gehen. Learning Rate setzen, Terminierung Aussetzen
                 first_derivative[np.abs(second_derivative) <= 0.00001] = -1 * alpha * \
                     first_derivative[np.abs(second_derivative) <= 0.00001]
                 second_derivative[np.abs(second_derivative) <= 0.00001] = 1
-                skip_terminate = True
             x_t = x_t - np.divide(first_derivative, second_derivative)  # ,
             # out=np.zeros_like(first_derivative), where=second_derivative == 0.0001)
             if ((np.abs(x_t - x_t_last) < 0.1).all() & (not skip_terminate)) or (iter >= max_iter):
@@ -215,7 +216,8 @@ class m_step_ga_mml(m_step):
                 x0 = x0[np.tril_indices_from(x0)]
                 new_sigma_cholesky_vector = self.newton_raphson(
                     x0=x0, funct=q_0_gradient_cholesky)
-                new_sigma_cholesky = np.identity(self.model.latent_dimension)
+                new_sigma_cholesky = np.identity(
+                    self.model.person_parameters["covariance"].shape[0])
                 new_sigma_cholesky[np.tril_indices_from(
                     new_sigma_cholesky)] = new_sigma_cholesky_vector
                 new_sigma = np.dot(new_sigma_cholesky,

@@ -10,8 +10,9 @@
 --
 
 --
-+item_characteristic_curve(A: 2d.array,
++icc(A: 2d.array,
  delta: array, theta: array): array
++latent_density()
 </panel_attributes><additional_attributes></additional_attributes></element><element><id>UMLClass</id><coordinates><x>620</x><y>360</y><w>230</w><h>120</h></coordinates><panel_attributes>mirt_2pl_gain
 --
 

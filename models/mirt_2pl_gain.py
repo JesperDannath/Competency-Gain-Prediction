@@ -59,6 +59,12 @@ class mirt_2pl_gain(mirt_2pl):
             raise Exception("New Covariance not positive semidefinite")
         return(True)
 
+    def fix_sigma(self, sigma_psi):
+        D = self.latent_dimension
+        sigma_psi = super().fix_sigma(sigma_psi)
+        sigma_psi[0:D, 0:D] = self.person_parameters["covariance"][0:D, 0:D]
+        return(sigma_psi)
+
     # def icc(self, theta, s, A=np.empty(0), delta=np.empty(0), cross=True):
     #     if not cross:
     #         icc_values = super().icc(theta=theta+s, A=A, delta=delta)
