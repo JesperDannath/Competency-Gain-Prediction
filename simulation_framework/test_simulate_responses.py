@@ -21,6 +21,7 @@ class test_mirt_2pl(unittest.TestCase):
         self.item_response_simulation.set_up(q_structure="singular")
         sample = self.item_response_simulation.sample(100)
         self.assertTrue(sample["early_responses"].shape == (100, 10))
+        self.assertTrue(sample["late_responses"].shape == (100, 10))
 
     def test_item_response_simulation_pyramid(self):
         self.item_response_simulation.set_up(

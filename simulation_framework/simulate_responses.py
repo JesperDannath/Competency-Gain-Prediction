@@ -11,6 +11,7 @@ sys.path.append(os.path.realpath("./models"))
 # Custom modules, import violates pep8, so we have to declare an exeption
 if True:  # noqa: E402
     from mirt_2pl import mirt_2pl
+    from mirt_2pl_gain import mirt_2pl_gain
 
 
 class response_simulation():
@@ -22,13 +23,16 @@ class response_simulation():
         self.latent_dimension = self.population.latent_dimension
         self.early_model = mirt_2pl(self.item_dimension, self.latent_dimension)
         self.early_model.set_parameters({"item_parameters": early_item_params})
+        self.late_model = mirt_2pl_gain(
+            self.item_dimension, self.latent_dimension)
+        self.late_model.set_parameters({"item_parameters": late_item_params})
         if self.item_dimension < self.latent_dimension:
             raise Exception("To few Items for given latent dimension")
 
     # TODO: Prevent All-zero columns
-    def initialize_random_q_structured_matrix(self, structure="singular", ensure_id=False):
+    def initialize_random_q_structured_matrix(self, structure="singular", ensure_id=False, early=True):
         if structure == "singular":
-            early_Q = np.ones((self.item_dimension, self.latent_dimension))
+            Q = np.ones((self.item_dimension, self.latent_dimension))
         elif structure == "seperated":
             item_frequencies = multinomial.rvs(self.item_dimension, p=[
                                                1/self.latent_dimension for i in range(0, self.latent_dimension)])
@@ -36,20 +40,20 @@ class response_simulation():
                 self.initialize_random_q_structured_matrix(
                     structure="seperated")
                 return
-            early_Q = []
+            Q = []
             for i, frequency in enumerate(item_frequencies):
                 for repeat in range(0, frequency):
-                    early_Q.append(
+                    Q.append(
                         [0 if j != i else 1 for j in range(0, self.latent_dimension)])
-            early_Q = np.array(early_Q)
+            Q = np.array(Q)
         elif structure == "pyramid":
             if (self.item_dimension < self.latent_dimension*2) & ensure_id:
                 raise Exception(
                     "To few Items to ensure Identification for structrue: pyramid")
             # Items mit mehr skills sind ggf. unwahrscheinlicher (linearer abstieg)
-            early_Q = []
+            Q = []
             if ensure_id:
-                early_Q = list(np.identity(self.latent_dimension))
+                Q = list(np.identity(self.latent_dimension))
                 pyramid_items = self.item_dimension - self.latent_dimension
             else:
                 pyramid_items = self. item_dimension
@@ -60,9 +64,9 @@ class response_simulation():
                 return
             for i, frequency in enumerate(stair_frequencies):
                 for repeat in range(0, frequency):
-                    early_Q.append(
+                    Q.append(
                         [1 if j <= i else 0 for j in range(0, self.latent_dimension)])
-            early_Q = np.array(early_Q)
+            Q = np.array(Q)
         # TODO: Add structure Chained
         # TODO: Add structure Full-Complexity
         elif (structure == "full"):
@@ -78,15 +82,19 @@ class response_simulation():
                 [0, 1], repeat=self.latent_dimension))
             patterns.remove(
                 tuple([0 for i in range(0, self.latent_dimension)]))
-            early_Q = []
+            Q = []
             for i, pattern in enumerate(patterns):
                 for j in range(0, pattern_frequencies[i]):
-                    early_Q.append(pattern)
-            early_Q = np.array(early_Q)
+                    Q.append(pattern)
+            Q = np.array(Q)
         else:
             raise Exception("Q-Matrix structure not known")
-        self.early_model.set_parameters(
-            {"item_parameters": {"q_matrix": early_Q, "discrimination_matrix": early_Q}})
+        if early:
+            self.early_model.set_parameters(
+                {"item_parameters": {"q_matrix": Q, "discrimination_matrix": Q}})
+        else:
+            self.late_model.set_parameters(
+                {"item_parameters": {"q_matrix": Q, "discrimination_matrix": Q}})
 
     def get_Q(self, time="early"):
         if time not in ["early", "late"]:
@@ -94,7 +102,7 @@ class response_simulation():
         if time in ["early"]:
             return self.early_model.item_parameters["q_matrix"]
         if time in ["late"]:
-            pass
+            return self.late_model.item_parameters["q_matrix"]
 
     # def initialize_random_item_parameters(self, Q=np.empty(0)):
     #     if Q.size == 0:
@@ -141,9 +149,12 @@ class response_simulation():
     #     return(self.early_model.item_parameters)
 
     # TODO: Prohibit all-zero rows
-    def initialize_random_item_parameters(self, Q=np.empty(0)):
+    def initialize_random_item_parameters(self, Q=np.empty(0), early=True):
         if Q.size == 0:
-            Q = self.early_model.item_parameters["q_matrix"]
+            if early:
+                Q = self.early_model.item_parameters["q_matrix"]
+            else:
+                Q = self.late_model.item_parameters["q_matrix"]
         # 1. Sample relative difficulties
         delta = multivariate_normal(mean=np.zeros(
             1), cov=np.ones(1)).rvs(self.item_dimension)
@@ -156,26 +167,35 @@ class response_simulation():
                 mean=1*np.ones(self.latent_dimension), cov=0.5*np.identity(self.latent_dimension)).rvs())
         item_parameters = {"discrimination_matrix": np.multiply(A, Q),
                            "intercept_vector": delta}
-        self.early_model.item_parameters.update(item_parameters)
         if len(A[A <= 0]) > 0:
             raise Exception("Negative Discriminations sampled")
-        return(self.early_model.item_parameters)
+        if early:
+            self.early_model.item_parameters.update(item_parameters)
+            return(self.early_model.item_parameters)
+        else:
+            self.late_model.item_parameters.update(item_parameters)
+            return(self.late_model.item_parameters)
 
     def sample(self, sample_size) -> pd.DataFrame:
         sample = {}
-        sample["latent_trait"] = self.population.sample(
+        sample["latent_trait"], sample["latent_gain"] = self.population.sample(
             sample_size=sample_size)
-        p_early = self.early_model.icc(sample["latent_trait"])
-        #p_late = LFA_Curve(late_parameters, alpha, s)
+        p_early = self.early_model.icc(theta=sample["latent_trait"])
+        p_late = self.late_model.icc(
+            theta=sample["latent_trait"], s=sample["latent_gain"], cross=False)
         sample["early_responses"] = pd.DataFrame(bernoulli(p=p_early).rvs())
-        #late_sample = bernoulli(p=p_late).rvs()
+        sample["late_responses"] = pd.DataFrame(bernoulli(p=p_late).rvs())
         sample["sample_size"] = sample_size
         sample["latent_dimension"] = self.latent_dimension
         sample["item_dimension"] = self.item_dimension
         if list(np.ones(sample_size)) in list(sample["early_responses"].transpose()):
-            raise Exception("All correct item identified")
+            raise Exception("All-correct item identified")
         if list(np.zeros(sample_size)) in list(sample["early_responses"].transpose()):
-            raise Exception("All incorrect item identified")
+            raise Exception("All-incorrect item identified")
+        if list(np.ones(sample_size)) in list(sample["late_responses"].transpose()):
+            raise Exception("All-correct item identified")
+        if list(np.zeros(sample_size)) in list(sample["late_responses"].transpose()):
+            raise Exception("All-incorrect item identified")
         return(sample)
 
     def get_item_parameters(self):
