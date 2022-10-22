@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 
 
-class test_mirt_2pl(unittest.TestCase):
+class test_mirt_2pl_gain(unittest.TestCase):
 
     def setUp(self):
         A = np.array([[1, 0, 0],

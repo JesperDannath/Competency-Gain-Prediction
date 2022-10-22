@@ -44,5 +44,7 @@ class item_response_simulation():
         self.real_late_parameters = {
             "item_parameters": self.late_item_parameters, "person_parameters": late_person_parameters}
         parameter_dict = {"real_early_parameters": self.real_early_parameters,
-                          "real_late_parameters": self.real_late_parameters}
+                          "real_late_parameters": self.real_late_parameters,
+                          "item_dimension": self.item_dimension,
+                          "latent_dimension": self.latent_dimension}
         return(parameter_dict)

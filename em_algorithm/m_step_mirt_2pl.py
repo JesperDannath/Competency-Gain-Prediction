@@ -247,10 +247,11 @@ class m_step_ga_mml(m_step):
         # print("Maximize the Q_i's")
         for item in range(0, self.model.item_dimension):
             a_init = self.model.item_parameters["discrimination_matrix"][item]
+            a_init = a_init[a_init != 0]
             delta_init = self.model.item_parameters["intercept_vector"][item]
             x0 = np.concatenate(
                 (a_init, np.expand_dims(delta_init, 0)), axis=0)
-            x0 = x0[x0 != 0]
+            #x0 = x0[x0 != 0] # Problem: delta darf 0 sein
 
             def q_item(input):
                 delta_item = input[len(input)-1]

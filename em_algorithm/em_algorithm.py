@@ -34,20 +34,20 @@ class em_algorithm():
         current_parameters = {"item_parameters": self.model.item_parameters,
                               "person_parameters": self.model.person_parameters}
         marginal_loglikelihood = self.model.marginal_response_loglikelihood(
-            data.to_numpy())
+            *data)
         while (not converged) and i <= max_iter:
             print("EM Iteration {0}".format(i+1))
             last_step_parameters = copy.deepcopy(current_parameters)
             last_step_marginal_loglikelihood = marginal_loglikelihood.copy()
             # print("E-step")
             posterior_expectation = self.e_step.step(
-                response_data=data, iter=i)
+                *data, iter=i)
             # print("M-step")
             current_parameters, log_likelihood = self.m_step.step(
                 pe_functions=posterior_expectation)
             self.model.set_parameters(current_parameters)
             marginal_loglikelihood = self.model.marginal_response_loglikelihood(
-                data.to_numpy())
+                *data)
             marginal_loglikelihood_diff = abs(
                 marginal_loglikelihood - last_step_marginal_loglikelihood)
             abs_parameter_diff, parameter_diff = self.give_parameter_diff(

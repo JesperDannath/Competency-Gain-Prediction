@@ -40,7 +40,7 @@ class mirt_2pl(irt_model):
             "discrimination_matrix": A, "intercept_vector": delta, "q_matrix": Q}
         self.person_parameters = {"covariance": sigma}
 
-    def initialize_from_responses(self, response_data: pd.DataFrame):
+    def initialize_from_responses(self, response_data: pd.DataFrame, sigma=True):
         #A = np.ones((self.item_dimension, self.latent_dimension))
         #self.item_parameters["q_matrix"] = A
         A = self.item_parameters["q_matrix"]
@@ -49,12 +49,15 @@ class mirt_2pl(irt_model):
         item_response_mean[item_response_mean == 0] = 0.01
         delta = np.log(np.divide(item_response_mean, 1 -
                                  item_response_mean)).to_numpy()
-        n = self.latent_dimension-1
-        sigma = self.corr_to_sigma(
-            corr=0.5*np.ones(int((n*(n+1))/2)))
+        n = self.latent_dimension - 1
+        if sigma:
+            sigma = self.corr_to_sigma(
+                corr=0.5*np.ones(int((n*(n+1))/2)))
+            person_parameters = {"covariance": sigma}
+        else:
+            person_parameters = {}
         item_parameters = {
             "discrimination_matrix": A, "intercept_vector": delta}
-        person_parameters = {"covariance": sigma}
         self.set_parameters(
             {"item_parameters": item_parameters, "person_parameters": person_parameters})
 
@@ -240,10 +243,10 @@ class mirt_2pl(irt_model):
                 raise Exception("Could not fill zero Discriminations")
             return(a_item)
 
-    def marginal_response_loglikelihood(self, response_data, N=1000):
+    def marginal_response_loglikelihood(self, response_data: pd.DataFrame(), N=1000):
         theta = self.sample_competency(N)
         response_matrix_prob = self.response_matrix_probability(
-            theta=theta, response_matrix=response_data)
+            theta=theta, response_matrix=response_data.to_numpy())
         marginal_vector_probabilities = np.log(
             np.mean(response_matrix_prob, axis=0))
         response_loglikelihood = np.sum(marginal_vector_probabilities)
@@ -263,7 +266,7 @@ class mirt_2pl(irt_model):
             response_data (pd.DataFrame or np.array): Response data from Item's 
         """
         competency_matrix = np.zeros(
-            shape=(response_data.shape[1], self.latent_dimension))
+            shape=(response_data.shape[0], self.latent_dimension))
         for i, response_pattern in enumerate(response_data.to_numpy()):
             def nll(x): return -1*self.answer_log_likelihood(x,
                                                              response_pattern)

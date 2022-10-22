@@ -1,7 +1,9 @@
 from mirt_2pl import mirt_2pl
 import numpy as np
+import pandas as pd
 from scipy.stats import multivariate_normal
 from scipy.stats.qmc import MultivariateNormalQMC
+from scipy.optimize import minimize
 
 
 class mirt_2pl_gain(mirt_2pl):
@@ -214,3 +216,42 @@ class mirt_2pl_gain(mirt_2pl):
 
     def realize_interpretation(interpretation="lower gain bound"):
         pass
+
+    def marginal_response_loglikelihood(self, response_data, theta, N=1000):
+        s_sample = self.sample_gain(N, qmc=False)
+        response_matrix_prob = self.response_matrix_probability(
+            theta=theta, s=s_sample, response_matrix=response_data)
+        conditional_competency_density = self.latent_density(
+            type="early_conditional", s=s_sample, theta=theta)
+        response_matrix_prob = np.sum(np.multiply(
+            response_matrix_prob, conditional_competency_density), axis=0)
+        marginal_vector_probabilities = np.log(
+            np.mean(response_matrix_prob, axis=0))
+        response_loglikelihood = np.sum(marginal_vector_probabilities)
+        return(response_loglikelihood)
+
+    def answer_log_likelihood(self, s, theta, answer_vector):
+        # TODO: check why so many values are returned!
+        ICC_values = self.icc(theta=theta, s=s, cross=False)
+        latent_density = self.latent_density(theta=theta, s=s, type="full")
+        log_likelihood = np.dot(answer_vector, np.log(ICC_values)[0]) + np.dot(
+            (1-answer_vector), np.log(1-ICC_values)[0]) + np.log(latent_density)
+        return(log_likelihood)
+
+    def predict_gain(self, response_data: pd.DataFrame = pd.DataFrame(), theta: pd.DataFrame = pd.DataFrame()) -> np.array:
+        """Given the estimated item-parameters for a MIRT-Model and some response_data, this function will estimate the latent ability for every respondent.
+
+        Args:
+            response_data (pd.DataFrame or np.array): Response data from Item's 
+        """
+        gain_matrix = np.zeros(
+            shape=(response_data.shape[0], self.latent_dimension))
+        for i, response_pattern in enumerate(response_data.to_numpy()):
+            def nll(x): return -1*self.answer_log_likelihood(s=x,
+                                                             theta=theta.to_numpy()[
+                                                                 i],
+                                                             answer_vector=response_pattern)
+            x0 = self.sample_gain()
+            res = minimize(nll, x0=x0, method='BFGS')
+            gain_matrix[i] = res.x
+        return(gain_matrix)
