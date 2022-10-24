@@ -38,7 +38,7 @@ class item_response_simulation():
         early_person_parameters = {
             "covariance": self.person_parameters["covariance"][0:D, 0:D]}
         late_person_parameters = {
-            "covariance": self.person_parameters["covariance"][D:2*D, D:2*D]}
+            "covariance": self.person_parameters["covariance"]}
         self.real_early_parameters = {
             "item_parameters": self.early_item_parameters, "person_parameters": early_person_parameters}
         self.real_late_parameters = {
