@@ -21,6 +21,7 @@ class mirt_2pl(irt_model):
         """
         super().__init__(item_dimension, latent_dimension)
         self.initialize_parameters(A, Q, delta, sigma)
+        self.type = "normal"
 
     def initialize_parameters(self, A, Q, delta, sigma):
         if Q.size == 0:
@@ -52,7 +53,7 @@ class mirt_2pl(irt_model):
         n = self.latent_dimension - 1
         if sigma:
             sigma = self.corr_to_sigma(
-                corr=0.5*np.ones(int((n*(n+1))/2)))
+                corr_u=0.5*np.ones(int((n*(n+1))/2)))
             person_parameters = {"covariance": sigma}
         else:
             person_parameters = {}
@@ -80,7 +81,7 @@ class mirt_2pl(irt_model):
             print(sigma)
             raise Exception("Covariance is not symmetric")
         if not np.all(np.linalg.eigvals(sigma) >= 0):
-            print(sigma)
+            # print(sigma)
             raise Exception("New Covariance not positive semidefinite")
         return(True)
 
@@ -207,19 +208,21 @@ class mirt_2pl(irt_model):
                           "person_parameters": self.person_parameters}
         return(copy.deepcopy(parameter_dict))
 
-    def corr_to_sigma(self, corr, check=True):
+    def corr_to_sigma(self, corr_u, check=True):
         """Creates a Covariance Matrix sigma from an array of Correlations
         Args:
-            corr (np.array): array of latant trait correlations. Entrys are the upper triangular Matrix
+            corr_u (np.array): array of latant trait correlations. Entrys are the upper triangular Matrix
             of sigma from left to right and top to bottom.
         """
-        new_sigma = self.person_parameters["covariance"].copy().astype(
+        dim = self.person_parameters["covariance"].shape[0]
+        new_sigma = np.identity(dim).astype(
             np.float64)
         # new_sigma[np.triu_indices(self.latent_dimension, k=1)] = corr
         np.place(new_sigma,
-                 mask=np.triu(np.ones(self.latent_dimension), k=1).astype(np.bool), vals=corr)
+                 mask=np.triu(np.ones(dim), k=1).astype(np.bool), vals=corr_u)
+        corr_l = new_sigma.transpose()[np.tril_indices_from(new_sigma, k=-1)]
         np.place(new_sigma,
-                 mask=np.tril(np.ones(self.latent_dimension), k=-1).astype(np.bool), vals=corr)
+                 mask=np.tril(np.ones(dim), k=-1).astype(np.bool), vals=corr_l)
         # new_sigma[np.tril_indices(self.latent_dimension, k=-1)] = corr
         if check == True:
             self.check_sigma(new_sigma)

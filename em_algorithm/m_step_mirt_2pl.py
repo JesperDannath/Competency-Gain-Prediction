@@ -25,7 +25,7 @@ class m_step_ga_mml(m_step):
 
     # TODO: Python package für ga ausprobieren: cmaes (https://github.com/CMA-ES/pycma)
     def genetic_algorithm(self, fitness_function, x0: np.array, constraint_function=lambda x: True,
-                          population_size: int = 40, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=1, max_iter=100):
+                          population_size: int = 40, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=0.1, max_iter=100):
         # Helping functions
         def mutate(individual):
             valid_individual = False
@@ -102,7 +102,7 @@ class m_step_ga_mml(m_step):
             iter += 1
         return(population_base[0][1])
 
-    def newton_raphson(self, funct, x0, max_iter=1000, alpha=0.001):
+    def newton_raphson(self, funct, x0, max_iter=100, alpha=0.001):
         x_t = x0.copy()
         converged = False
         iter = 0
@@ -123,6 +123,8 @@ class m_step_ga_mml(m_step):
             # out=np.zeros_like(first_derivative), where=second_derivative == 0.0001)
             if ((np.abs(x_t - x_t_last) < 0.1).all() & (not skip_terminate)) or (iter >= max_iter):
                 converged = True
+                if iter >= max_iter:
+                    print("Warning: Newton Raphson not converged")
             iter = iter+1
         return(x_t)
 
@@ -173,12 +175,19 @@ class m_step_ga_mml(m_step):
         q_0_cholesky = self.q_0_cholesky(pe_functions)
         q_0_gradient_cholesky = self.q_0_gradient_cholesky(pe_functions)
 
-        x0 = self.model.person_parameters["covariance"][np.triu_indices(
-            self.model.latent_dimension, k=1)]
-
-        if len(x0) > 0:
+        if self.model.latent_dimension > 1:
             if person_method == "ga":
-
+                if self.model.type == "normal":
+                    x0 = self.model.person_parameters["covariance"][np.triu_indices_from(
+                        self.model.person_parameters["covariance"], k=1)]
+                elif self.model.type == "gain":
+                    D = self.model.latent_dimension
+                    psi_flat = self.model.person_parameters["covariance"][0:D, D:2*D].flatten(
+                    )
+                    late_sigma_corr_u = self.model.person_parameters["covariance"][D:2*D, D:2*D]
+                    late_sigma_corr_u = late_sigma_corr_u[np.triu_indices_from(
+                        late_sigma_corr_u, k=1)]
+                    x0 = np.concatenate((psi_flat, late_sigma_corr_u), axis=0)
                 # new_corr = self.genetic_algorithm(
                 #    q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
                 # if len(x0) > 1:
@@ -251,7 +260,7 @@ class m_step_ga_mml(m_step):
             delta_init = self.model.item_parameters["intercept_vector"][item]
             x0 = np.concatenate(
                 (a_init, np.expand_dims(delta_init, 0)), axis=0)
-            #x0 = x0[x0 != 0] # Problem: delta darf 0 sein
+            # x0 = x0[x0 != 0] # Problem: delta darf 0 sein
 
             def q_item(input):
                 delta_item = input[len(input)-1]

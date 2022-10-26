@@ -31,7 +31,7 @@ class m_step_ga_mml_gain(m_step_ga_mml):
             sigma_psi[0:D, 0:D] = self.model.person_parameters["covariance"][0:D, 0:D]
             return pe_functions["q_0"](np.reshape(
                 sigma_psi, newshape=(
-                    self.model.latent_dimension, self.model.latent_dimension)))
+                    2*self.model.latent_dimension, 2*self.model.latent_dimension)))
         return(func)
 
     def q_0_cholesky(self, pe_functions):

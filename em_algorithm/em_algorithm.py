@@ -16,7 +16,7 @@ class em_algorithm():
         self.m_step = m_step
         self.model = model
 
-    def fit(self, data: pd.DataFrame, hyper_params: dict = None, max_iter=100, stop_threshold=0.1) -> dict:
+    def fit(self, data: pd.DataFrame, hyper_params: dict = None, person_method="newton_raphson", max_iter=100, stop_threshold=0.1) -> dict:
         """Fit the EM-Algorithm for some incomplete data for the specified incomplete_data_model.
 
         Args:
@@ -44,7 +44,7 @@ class em_algorithm():
                 *data, iter=i)
             # print("M-step")
             current_parameters, log_likelihood = self.m_step.step(
-                pe_functions=posterior_expectation)
+                pe_functions=posterior_expectation, person_method=person_method)
             self.model.set_parameters(current_parameters)
             marginal_loglikelihood = self.model.marginal_response_loglikelihood(
                 *data)

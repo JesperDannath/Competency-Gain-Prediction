@@ -13,6 +13,7 @@ class mirt_2pl_gain(mirt_2pl):
         super().__init__(item_dimension, latent_dimension=latent_dimension, A=A, Q=Q)
         self.initialize_gain_parameters(early_sigma, late_sigma, latent_corr)
         self.update_conditional_covariance()
+        self.type = "gain"
 
     def initialize_gain_parameters(self, early_sigma=np.empty(0), late_sigma=np.empty(0), latent_corr=np.empty(0)):
         D = self.latent_dimension
@@ -34,24 +35,28 @@ class mirt_2pl_gain(mirt_2pl):
     def update_conditional_covariance(self):
         D = self.latent_dimension
         psi = self.get_cov("corr")
-        inv_early_cov = np.linalg.inv(self.get_cov("late"))
-        inv_late_cov = np.linalg.inv(self.get_cov("early"))
+        inv_early_cov = np.linalg.inv(self.get_cov("early"))
+        inv_late_cov = np.linalg.inv(self.get_cov("late"))
         mu = self.person_parameters["mean"][D:2*D]
-        early_mean_predictor = np.dot(psi, inv_early_cov)
+        early_mean_predictor = np.dot(psi, inv_late_cov)
         early_conditional_cov = self.get_cov(
-            "early") - np.dot(np.dot(psi, inv_early_cov), inv_early_cov.transpose())
+            "early") - np.dot(np.dot(psi, inv_late_cov), psi.transpose())
         # TODO: Check where Psi needs to be transposed!
         late_conditional_cov = self.get_cov(
-            "late") - np.dot(np.dot(psi.transpose(), inv_late_cov), psi)
+            "late") - np.dot(np.dot(psi.transpose(), inv_early_cov), psi)
         person_parameters = {"early_conditional_covariance": early_conditional_cov,
                              "early_conditional_mean_predictor": early_mean_predictor,
                              "late_conditional_covariance": late_conditional_cov}
         self.set_parameters({"person_parameters": person_parameters})
 
-    def check_sigma(self, sigma: np.array = np.empty(0)):
+    def check_sigma(self, sigma: np.array = np.empty(0), enforce_early_cov=True):
+        D = self.latent_dimension
         if sigma.size == 0:
             sigma = self.person_parameters["covariance"]
-        if not sigma.shape == (self.latent_dimension*2, self.latent_dimension*2):
+        else:
+            if (sigma[0:D, 0:D] != self.person_parameters["covariance"][0:D, 0:D]).any() and enforce_early_cov:
+                raise Exception("Early Covariance not correct")
+        if not sigma.shape == (2*D, 2*D):
             raise Exception("Covariance is of wrong shape")
         if not np.array_equal(sigma.transpose(), sigma):
             print(sigma)
@@ -60,6 +65,27 @@ class mirt_2pl_gain(mirt_2pl):
             print(sigma)
             raise Exception("New Covariance not positive semidefinite")
         return(True)
+
+    def corr_to_sigma(self, corr_vector, check=True, type="only_late"):
+        D = self.latent_dimension
+        if type == "only_late":
+            sigma_psi_triu = np.triu(self.person_parameters["covariance"], k=1)
+            psi = corr_vector[0:D**2].reshape((D, D))
+            sigma_psi_triu[0:D, D:2*D] = psi
+            late_sigma_corr_u = corr_vector[D**2:]
+            late_sigma_triu = np.identity(D)
+            np.place(late_sigma_triu,
+                     mask=np.triu(np.ones(D), k=1).astype(np.bool), vals=late_sigma_corr_u)
+            sigma_psi_triu[D:2*D, D:2*D] = late_sigma_triu
+            sigma_psi = super().corr_to_sigma(
+                sigma_psi_triu[np.triu_indices_from(sigma_psi_triu, k=1)], check=check)
+        elif type == "only_psi":
+            pass
+        elif type == "full":
+            pass
+        else:
+            raise Exception("Corr type for sigma not known")
+        return(sigma_psi)
 
     def fix_sigma(self, sigma_psi):
         D = self.latent_dimension
@@ -223,11 +249,12 @@ class mirt_2pl_gain(mirt_2pl):
             theta=theta, s=s_sample, response_matrix=response_data)
         conditional_competency_density = self.latent_density(
             type="early_conditional", s=s_sample, theta=theta)
-        response_matrix_prob = np.sum(np.multiply(
+        # Integration for each data-element
+        response_matrix_prob = np.mean(np.multiply(
             response_matrix_prob, conditional_competency_density), axis=0)
-        marginal_vector_probabilities = np.log(
-            np.mean(response_matrix_prob, axis=0))
-        response_loglikelihood = np.sum(marginal_vector_probabilities)
+        log_marginal_vector_probabilities = np.log(response_matrix_prob)
+        # sum over data-elements
+        response_loglikelihood = np.sum(log_marginal_vector_probabilities)
         return(response_loglikelihood)
 
     def answer_log_likelihood(self, s, theta, answer_vector):
