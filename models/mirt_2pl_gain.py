@@ -49,7 +49,7 @@ class mirt_2pl_gain(mirt_2pl):
                              "late_conditional_covariance": late_conditional_cov}
         self.set_parameters({"person_parameters": person_parameters})
 
-    def check_sigma(self, sigma: np.array = np.empty(0), enforce_early_cov=True):
+    def check_sigma(self, sigma: np.array = np.empty(0), enforce_early_cov=False):
         D = self.latent_dimension
         if sigma.size == 0:
             sigma = self.person_parameters["covariance"]
@@ -82,15 +82,16 @@ class mirt_2pl_gain(mirt_2pl):
         elif type == "only_psi":
             pass
         elif type == "full":
-            pass
+            sigma_psi = super().corr_to_sigma(corr_vector)
         else:
             raise Exception("Corr type for sigma not known")
         return(sigma_psi)
 
-    def fix_sigma(self, sigma_psi):
+    def fix_sigma(self, sigma_psi, sigma_constraint="early_constraint"):
         D = self.latent_dimension
         sigma_psi = super().fix_sigma(sigma_psi)
-        sigma_psi[0:D, 0:D] = self.person_parameters["covariance"][0:D, 0:D]
+        if sigma_constraint == "early_constraint":
+            sigma_psi[0:D, 0:D] = self.person_parameters["covariance"][0:D, 0:D]
         return(sigma_psi)
 
     # def icc(self, theta, s, A=np.empty(0), delta=np.empty(0), cross=True):
@@ -109,15 +110,15 @@ class mirt_2pl_gain(mirt_2pl):
     #             (s.shape[0], theta.shape[0], self.item_dimension))
     #     return(icc_values)
 
-    def icc(self, theta, s, A=np.empty(0), delta=np.empty(0), cross=True):
+    def icc(self, theta, s, A=np.empty(0), delta=np.empty(0), cross=True, save=False):
         if not cross:
-            icc_values = super().icc(theta=theta+s, A=A, delta=delta)
+            icc_values = super().icc(theta=theta+s, A=A, delta=delta, save=save)
         else:
             s_tile, theta_tile = self.tile_competency_gain(s=s, theta=theta)
             competency = np.add(s_tile, theta_tile)
             competency = competency.reshape(
                 s.shape[0]*theta.shape[0], self.latent_dimension)
-            icc_values = super().icc(theta=competency, A=A, delta=delta)
+            icc_values = super().icc(theta=competency, A=A, delta=delta, save=save)
             icc_values = icc_values.reshape(
                 (theta.shape[0], s.shape[0], A.shape[0]))
         return(icc_values)
@@ -169,7 +170,7 @@ class mirt_2pl_gain(mirt_2pl):
             return(mu[D:2*D])
 
     def latent_density(self, type="full", theta: np.array = np.empty(0), s: np.array = np.empty(0),
-                       sigma: np.array = np.empty(0), mu: np.array = np.empty(0)):
+                       sigma: np.array = np.empty(0), mu: np.array = np.empty(0), save=False):
         D = self.latent_dimension
         if sigma.size == 0:
             sigma = self.get_cov(type)
@@ -195,12 +196,12 @@ class mirt_2pl_gain(mirt_2pl):
             s_tile, theta_tile = self.tile_competency_gain(s=s, theta=theta)
             x = np.concatenate((s_tile, theta_tile), axis=2).reshape(
                 (s.shape[0]*theta.shape[0], 2*D))
-            density = super().latent_density(x, sigma, mu).reshape(
+            density = super().latent_density(x, sigma, mu, save=save).reshape(
                 (s.shape[0], theta.shape[0]))
             return(density)
         else:
             raise Exception("density type not known")
-        return super().latent_density(x, sigma, mu)
+        return super().latent_density(x, sigma, mu, save=save)
 
     def response_matrix_probability(self, s, theta, response_matrix: np.array, A=np.empty(0), delta=np.empty(0)) -> np.array:
         """Calculate a matrix of response-vector probabilities. One entry in the resulting matrix
@@ -229,6 +230,7 @@ class mirt_2pl_gain(mirt_2pl):
         probability_vector = np.add(np.multiply(correct_response_probabilities, response_matrix),
                                     np.multiply(np.subtract(1, correct_response_probabilities), np.subtract(1, response_matrix)))
         probability = np.prod(probability_vector, axis=2)
+        # TODO: Log-option
         return(probability.transpose())
 
     # TODO: Immer ein tiling verwenden und Methoden mit tiling anstelle von cross definieren, sicherer!

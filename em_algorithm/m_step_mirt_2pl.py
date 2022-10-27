@@ -22,6 +22,7 @@ class m_step_ga_mml(m_step):
     def __init__(self, model: mirt_2pl) -> None:
         super().__init__()
         self.model = model
+        self.sigma_constraint = ""
 
     # TODO: Python package für ga ausprobieren: cmaes (https://github.com/CMA-ES/pycma)
     def genetic_algorithm(self, fitness_function, x0: np.array, constraint_function=lambda x: True,
@@ -206,12 +207,14 @@ class m_step_ga_mml(m_step):
                 x0 = x0[np.tril_indices_from(x0)]
                 new_sigma_cholesky_vector = minimize(
                     lambda x: -1*q_0_cholesky(x), jac=lambda x: -1*q_0_gradient_cholesky(x), x0=x0, method='BFGS').x
-                new_sigma_cholesky = np.identity(self.model.latent_dimension)
+                new_sigma_cholesky = np.identity(
+                    self.model.person_parameters["covariance"].shape[0])
                 new_sigma_cholesky[np.tril_indices_from(
                     new_sigma_cholesky)] = new_sigma_cholesky_vector
                 new_sigma = np.dot(new_sigma_cholesky,
                                    new_sigma_cholesky.transpose())
-                new_sigma = self.model.fix_sigma(new_sigma)
+                new_sigma = self.model.fix_sigma(
+                    new_sigma, self.sigma_constraint)
 
                 def trunc(values, decs=0):
                     return np.trunc(values*10**decs)/(10**decs)
@@ -231,7 +234,8 @@ class m_step_ga_mml(m_step):
                     new_sigma_cholesky)] = new_sigma_cholesky_vector
                 new_sigma = np.dot(new_sigma_cholesky,
                                    new_sigma_cholesky.transpose())
-                new_sigma = self.model.fix_sigma(new_sigma)
+                new_sigma = self.model.fix_sigma(
+                    new_sigma, self.sigma_constraint)
 
                 def trunc(values, decs=0):
                     return np.trunc(values*10**decs)/(10**decs)

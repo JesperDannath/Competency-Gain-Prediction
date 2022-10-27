@@ -85,7 +85,7 @@ class mirt_2pl(irt_model):
             raise Exception("New Covariance not positive semidefinite")
         return(True)
 
-    def fix_sigma(self, sigma: np.array):
+    def fix_sigma(self, sigma: np.array, sigma_constraint=""):
         """Fix the main Diagonal of sigma if not all entrys are one.
         Args:
             sigma (np.array): Latent Covariance matrix of shape (latent_dim, latent_dim)
@@ -96,7 +96,7 @@ class mirt_2pl(irt_model):
             np.dot(inv_sd_matrix, sigma), inv_sd_matrix)
         return(correlation_matrix)
 
-    def icc(self, theta: np.array, A=np.empty(0), delta=np.empty(0)) -> np.array:
+    def icc(self, theta: np.array, A=np.empty(0), delta=np.empty(0), save=False) -> np.array:
         """Item Characteristic Curve for a MIRT-2PL Model or similar logistic IRT Models
         Args:
             A (np.array): Matrix of item discriminations with shape (item_dimension, latent_dimension)
@@ -111,19 +111,29 @@ class mirt_2pl(irt_model):
             np.dot(A, np.transpose(theta)), np.expand_dims(delta, axis=1))
         p = np.transpose(
             np.divide(1, np.add(1, np.exp(np.multiply(-1, linear_predictor)))))
+        if save:
+            p[p == 0] = np.float64(1.7976931348623157e-308)  # np.min(p[p > 0])
+            p[p == 1] = np.float64(
+                1)-np.float64(1.7976931348623157e-16)  # np.max(p[p < 1])
         return(p)
 
-    def latent_density(self, theta: np.array, sigma: np.array = np.empty(0), mu: np.array = np.empty(0)):
+    def latent_density(self, theta: np.array, sigma: np.array = np.empty(0), mu: np.array = np.empty(0), save=False):
         if sigma.size == 0:
             sigma = self.person_parameters["covariance"]
         if mu.size == 0:
             mu = np.zeros(self.latent_dimension)
         if len(mu.shape) == 2:
-            pdf = np.zeros((mu.shape[0], theta.shape[0]))
+            pdf_values = np.zeros((mu.shape[0], theta.shape[0]))
             for i, mean in enumerate(mu):  # TODO: Make this faster
-                pdf[i] = multivariate_normal.pdf(x=theta, mean=mean, cov=sigma)
-            return(pdf)
-        return(multivariate_normal.pdf(x=theta, mean=mu, cov=sigma))
+                pdf_values[i] = multivariate_normal.pdf(
+                    x=theta, mean=mean, cov=sigma)
+            # return(pdf)
+        else:
+            pdf_values = multivariate_normal.pdf(x=theta, mean=mu, cov=sigma)
+        if save and (type(pdf_values) != np.float64):
+            # np.min(pdf_values[pdf_values > 0])
+            pdf_values[pdf_values == 0] = np.float64(1.7976931348623157e-308)
+        return(pdf_values)
 
     def sample_competency(self, sample_size=1, qmc=False):
         if not qmc:
@@ -164,6 +174,7 @@ class mirt_2pl(irt_model):
         probability_vector = np.add(np.multiply(correct_response_probabilities, response_matrix),
                                     np.multiply(np.subtract(1, correct_response_probabilities), np.subtract(1, response_matrix)))
         probability = np.prod(probability_vector, axis=2)
+        # TODO: Log-option, bigger storage 128 bit?
         return(probability)
 
     def joint_competency_answer_density(self, theta, response_vector: np.array, A=np.empty(0),

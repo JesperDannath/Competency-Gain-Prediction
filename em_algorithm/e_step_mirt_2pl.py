@@ -194,7 +194,7 @@ class e_step_ga_mml(e_step):
         sum = np.sum(np.divide(numerator, denominator), axis=1)
 
         def func(sigma, return_sample=False):
-            factor = np.log(self.model.latent_density(theta, sigma=sigma))
+            factor = np.log(self.model.latent_density(theta, sigma=sigma, save=True))
             product = np.multiply(factor, sum)
             if return_sample:
                 return(np.mean(product), product)

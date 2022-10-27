@@ -239,7 +239,7 @@ def calculate_marginal_likelihoods(model, data: list, real_parameters, initial_p
     return(likelihood_dict)
 
 
-def fit_early_model(sample, parameter_dict, stop_threshold, girth, person_method):
+def fit_early_model(sample, parameter_dict, stop_threshold, girth, person_method, sigma_constraint):
     # Fit Parameters from Early_Model
     # Initialize model
     latent_dimension = parameter_dict["latent_dimension"]
@@ -276,7 +276,7 @@ def fit_early_model(sample, parameter_dict, stop_threshold, girth, person_method
     return(early_estimated_parameters, early_initial_parameters, run_dict, early_model)
 
 
-def fit_late_model(sample, parameter_dict, stop_threshold, girth, person_method):
+def fit_late_model(sample, parameter_dict, stop_threshold, girth, person_method, sigma_constraint):
     # Fit late Model
     estimated_early_sigma = parameter_dict["estimated_early_parameters"]["person_parameters"]["covariance"]
     item_dimension = parameter_dict["item_dimension"]
@@ -289,8 +289,10 @@ def fit_late_model(sample, parameter_dict, stop_threshold, girth, person_method)
     late_model.initialize_from_responses(
         response_data=sample["late_responses"], sigma=False)
     late_initial_parameters = late_model.get_parameters()
-    e_step = em_algorithm.e_step_ga_mml_gain(model=late_model)
-    m_step = em_algorithm.m_step_ga_mml_gain(late_model)
+    e_step = em_algorithm.e_step_ga_mml_gain(
+        model=late_model)
+    m_step = em_algorithm.m_step_ga_mml_gain(
+        late_model, sigma_constraint=sigma_constraint)
     em = em_algorithm.em_algo(e_step=e_step, m_step=m_step, model=late_model)
 
     # Fit late model
@@ -316,7 +318,8 @@ def fit_late_model(sample, parameter_dict, stop_threshold, girth, person_method)
 
 def mirt_simulation_experiment(sample_size, item_dimension=20, latent_dimension=3,
                                q_type="seperated", girth=True, stop_threshold=0.2,
-                               ensure_id=False, q_share=0.0, person_method="newton_raphson") -> dict:
+                               ensure_id=False, q_share=0.0, person_method="newton_raphson",
+                               sigma_constraint="early_constraint") -> dict:
     # Simulate Responses
     simulation = item_response_simulation(
         item_dimension=item_dimension, latent_dimension=latent_dimension)
@@ -333,13 +336,13 @@ def mirt_simulation_experiment(sample_size, item_dimension=20, latent_dimension=
 
     # Fit Parameters from Early_Model
     early_estimated_parameters, early_initial_parameters, early_run, early_model = fit_early_model(
-        parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold, girth=girth, person_method=person_method)
+        parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold, girth=girth, person_method=person_method, sigma_constraint=sigma_constraint)
     parameter_dict.update(
         {"estimated_early_parameters": early_estimated_parameters})
 
     # Fit late Model
     late_estimated_parameters, late_initial_parameters, late_run, late_model = fit_late_model(
-        parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold, girth=girth, person_method=person_method)
+        parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold, girth=girth, person_method=person_method, sigma_constraint=sigma_constraint)
     parameter_dict.update(
         {"estimated_late_parameters": late_estimated_parameters})
 

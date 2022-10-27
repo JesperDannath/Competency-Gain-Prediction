@@ -20,14 +20,21 @@ if True:  # noqa: E402
 
 class m_step_ga_mml_gain(m_step_ga_mml):
 
-    def __init__(self, model: mirt_2pl_gain) -> None:
+    def __init__(self, model: mirt_2pl_gain, sigma_constraint) -> None:
         super().__init__(model)
+        self.sigma_constraint = sigma_constraint
 
     def q_0(self, pe_functions):
         D = self.model.latent_dimension
+        if self.sigma_constraint == "early_constraint":
+            type = "only_late"
+        elif self.sigma_constraint == "unconstrained":
+            type = "full"
+        else:
+            raise Exception("Sigma constraint not known")
 
         def func(corr_vector):
-            sigma_psi = self.model.corr_to_sigma(corr_vector)
+            sigma_psi = self.model.corr_to_sigma(corr_vector, type=type)
             sigma_psi[0:D, 0:D] = self.model.person_parameters["covariance"][0:D, 0:D]
             return pe_functions["q_0"](np.reshape(
                 sigma_psi, newshape=(
@@ -37,13 +44,13 @@ class m_step_ga_mml_gain(m_step_ga_mml):
     def q_0_cholesky(self, pe_functions):
         def func(cholesky_sigma_psi_vector):
             D = self.model.latent_dimension
-            cholesky_sigma = np.identity(D)
+            cholesky_sigma = np.identity(2*D)
             cholesky_sigma[np.tril_indices_from(
-                cholesky_sigma)] = cholesky_sigma_vector
+                cholesky_sigma)] = cholesky_sigma_psi_vector
             sigma = np.dot(cholesky_sigma, cholesky_sigma.transpose())
             return pe_functions["q_0"](np.reshape(
                 sigma, newshape=(
-                    self.model.latent_dimension, self.model.latent_dimension)))
+                    2*D, 2*D)))
         return(func)
 
     def q_0_gradient_cholesky(self, pe_functions):
@@ -54,7 +61,8 @@ class m_step_ga_mml_gain(m_step_ga_mml):
                 cholesky_sigma_psi)] = cholesky_sigma_psi_vector
             sigma_psi = np.dot(cholesky_sigma_psi,
                                cholesky_sigma_psi.transpose())
-            sigma_psi[0:D, 0:D] = self.model.person_parameters["covariance"][0:D, 0:D]
+            if self.sigma_constraint == "early_constraint":
+                sigma_psi[0:D, 0:D] = self.model.person_parameters["covariance"][0:D, 0:D]
             # Apply chain rule
 
             def outer_func(C_vector):
