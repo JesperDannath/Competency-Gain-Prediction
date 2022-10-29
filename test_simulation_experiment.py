@@ -14,7 +14,7 @@ class test_simula(unittest.TestCase):
 
     def test_simulation_experiment(self):
         result_dict = simulation_experiment.mirt_simulation_experiment(
-            sample_size=30, item_dimension=10, latent_dimension=2, q_type="full", stop_threshold=10, girth=False)
+            sample_size=30, item_dimension=10, latent_dimension=2, q_type="full", stop_threshold=10, person_method="BFGS")
 
 
 if __name__ == '__main__':

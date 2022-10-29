@@ -1,4 +1,5 @@
 from unittest import result
+import copy
 import models
 from models.mirt_2pl import mirt_2pl
 import numpy as np
@@ -44,27 +45,6 @@ def vector_to_params(vector, model):
     corr = vector[delta_cut: len(vector)]
     sigma = model.corr_to_sigma(corr, False)
     return({"item_parameters": item_parameters, "person_parameters": {"covariance": sigma}})
-
-
-def direct_marginal_optimization(model, response_data):
-    # Get initial parameters
-    x0 = params_to_vector(model)
-    response_data = response_data.to_numpy()
-    # Optimize with GA
-
-    def marginal_l_func(input_vector):
-        parameters = vector_to_params(input_vector, model)
-        try:
-            model.set_parameters(parameters)
-        except Exception:
-            return(np.inf)
-        result = -1*model.marginal_response_loglikelihood(response_data)
-        return(result)
-    es = cma.CMAEvolutionStrategy(x0=x0, sigma0=0.5)
-    es.optimize(marginal_l_func, maxfun=100000)
-    # Get result
-    result = es.result.xfavorite
-    return(vector_to_params(result, model))
 
 
 def rmse(y_pred: np.array, y_true: np.array) -> float:
@@ -138,8 +118,8 @@ def create_parameter_dict(estimated_early_parameters, real_early_parameters, est
 
 
 def create_performance_dict(parameter_dict, run_dict, sample=None, baselines=None, early_model=None, late_model=None):
-    result_dict = parameter_dict
-    result_dict["sample"] = sample
+    result_dict = copy.deepcopy(parameter_dict)
+    #result_dict["sample"] = sample
     latent_dimension = parameter_dict["latent_dimension"]
     # Model Performance
     # Early
@@ -154,64 +134,66 @@ def create_performance_dict(parameter_dict, run_dict, sample=None, baselines=Non
                                                                      estimated_parameter_dict=result_dict[
                                                                          "estimated_late_parameters"],
                                                                      early=False, latent_dimension=latent_dimension)
-    # Baseline's Performance
-    baselines["early"]["initial"]["performance"] = {"rmse": experiment_performance(real_parameter_dict=result_dict["real_early_parameters"],
-                                                                                   estimated_parameter_dict=baselines["early"][
-        "initial"]["parameters"],
-        latent_dimension=latent_dimension)}
-    baselines["late"]["initial"]["performance"] = {"rmse": experiment_performance(real_parameter_dict=result_dict["real_late_parameters"],
-                                                                                  estimated_parameter_dict=baselines["late"][
-        "initial"]["parameters"],
-        latent_dimension=latent_dimension, early=False)}
-    if "girth" in baselines["early"].keys():
-        girth_data = result_dict["sample"]["early_responses"].to_numpy(
-        ).transpose()
-        if early_model.latent_dimension == 1:
-            girth_estimates = twopl_mml(girth_data)
-        else:
-            girth_estimates = multidimensional_twopl_mml(
-                girth_data, n_factors=early_model.latent_dimension)
-        girth_item_parameters = {
-            "discrimination_matrix": girth_estimates["Discrimination"], "intercept_vector": girth_estimates["Difficulty"]}
-        girth_parameters = {"item_parameters": girth_item_parameters}
-        girth_estimated_covariance = np.cov(
-            girth_estimates["Ability"], rowvar=True)
-        girth_parameters["person_parameters"] = {
-            "covariance": girth_estimated_covariance}
-        girth_parameters = standardize_parameters(girth_parameters)
-        girth_performance_rmse = experiment_performance(real_parameter_dict=result_dict["real_early_parameters"],
-                                                        estimated_parameter_dict=girth_parameters, latent_dimension=latent_dimension)
-        baselines["early"]["girth"]["parameters"] = girth_parameters
-        baselines["early"]["girth"]["performance"] = {
-            "rmse": girth_performance_rmse}
 
-    if "early_direct" in baselines["early"].keys():
-        dir_model = mirt_2pl(item_dimension=early_model.item_dimension,
-                             latent_dimension=early_model.latent_dimension, Q=early_model.item_parameters["q_matrix"])
-        direct_early_item_parameters = direct_marginal_optimization(
-            dir_model, response_data=sample["early_responses"])
-        direct_early_performance_rmse = experiment_performance(real_parameter_dict=result_dict["real_early_parameters"],
-                                                               estimated_parameter_dict=direct_early_item_parameters, latent_dimension=latent_dimension)
-        baselines["early"]["early_direct"]["parameters"] = direct_early_item_parameters
-        baselines["early"]["early_direct"]["performance"] = {
-            "rmse": direct_early_performance_rmse}
+    # # Baseline's Performance
+    # baselines["early"]["initial"]["performance"] = {"rmse": experiment_performance(real_parameter_dict=result_dict["real_early_parameters"],
+    #                                                                                estimated_parameter_dict=baselines["early"][
+    #     "initial"]["parameters"],
+    #     latent_dimension=latent_dimension)}
+    # baselines["late"]["initial"]["performance"] = {"rmse": experiment_performance(real_parameter_dict=result_dict["real_late_parameters"],
+    #                                                                               estimated_parameter_dict=baselines["late"][
+    #     "initial"]["parameters"],
+    #     latent_dimension=latent_dimension, early=False)}
+    # if "girth" in baselines["early"].keys():
+    #     girth_data = result_dict["sample"]["early_responses"].to_numpy(
+    #     ).transpose()
+    #     if early_model.latent_dimension == 1:
+    #         girth_estimates = twopl_mml(girth_data)
+    #     else:
+    #         girth_estimates = multidimensional_twopl_mml(
+    #             girth_data, n_factors=early_model.latent_dimension)
+    #     girth_item_parameters = {
+    #         "discrimination_matrix": girth_estimates["Discrimination"], "intercept_vector": girth_estimates["Difficulty"]}
+    #     girth_parameters = {"item_parameters": girth_item_parameters}
+    #     girth_estimated_covariance = np.cov(
+    #         girth_estimates["Ability"], rowvar=True)
+    #     girth_parameters["person_parameters"] = {
+    #         "covariance": girth_estimated_covariance}
+    #     girth_parameters = standardize_parameters(girth_parameters)
+    #     girth_performance_rmse = experiment_performance(real_parameter_dict=result_dict["real_early_parameters"],
+    #                                                     estimated_parameter_dict=girth_parameters, latent_dimension=latent_dimension)
+    #     baselines["early"]["girth"]["parameters"] = girth_parameters
+    #     baselines["early"]["girth"]["performance"] = {
+    #         "rmse": girth_performance_rmse}
 
-    result_dict["baselines"] = baselines
+    # if "early_direct" in baselines["early"].keys():
+    #     dir_model = mirt_2pl(item_dimension=early_model.item_dimension,
+    #                          latent_dimension=early_model.latent_dimension, Q=early_model.item_parameters["q_matrix"])
+    #     direct_early_item_parameters = direct_marginal_optimization(
+    #         dir_model, response_data=sample["early_responses"])
+    #     direct_early_performance_rmse = experiment_performance(real_parameter_dict=result_dict["real_early_parameters"],
+    #                                                            estimated_parameter_dict=direct_early_item_parameters, latent_dimension=latent_dimension)
+    #     baselines["early"]["early_direct"]["parameters"] = direct_early_item_parameters
+    #     baselines["early"]["early_direct"]["performance"] = {
+    #         "rmse": direct_early_performance_rmse}
+
+    # result_dict["baselines"] = baselines
     # Marginal Likelihood
     early_likelihood = calculate_marginal_likelihoods(model=early_model, data=[sample["early_responses"]], real_parameters=result_dict["real_early_parameters"],
-                                                      initial_parameters=baselines["early"]["initial"]["parameters"], estimated_parameters=result_dict["estimated_early_parameters"])
+                                                      estimated_parameters=result_dict["estimated_early_parameters"])
     result_dict["early_performance"]["early_marginal_likelihood"] = early_likelihood
     late_data = [sample["late_responses"],
                  parameter_dict["estimated_early_parameters"]["person_parameters"]["theta"]]
     late_likelihood = calculate_marginal_likelihoods(model=late_model, data=late_data, real_parameters=result_dict["real_late_parameters"],
-                                                     initial_parameters=baselines["late"]["initial"]["parameters"], estimated_parameters=result_dict["estimated_late_parameters"])
+                                                     estimated_parameters=result_dict["estimated_late_parameters"])
     result_dict["late_performance"]["late_marginal_likelihood"] = late_likelihood
     # Individual Level
     theta_pred = parameter_dict["estimated_early_parameters"]["person_parameters"]["theta"].to_numpy(
     )
     theta_real = sample["latent_trait"]
     rmse_theta = rmse(theta_pred, theta_real)
-    s_pred = parameter_dict["estimated_late_parameters"]["person_parameters"]["s"]
+    s_pred = parameter_dict["estimated_late_parameters"]["person_parameters"]["s"].to_numpy(
+    )
     s_real = sample["latent_gain"]
     rmse_s = rmse(s_pred, s_real)
     result_dict["early_performance"]["individual"] = {}
@@ -224,10 +206,10 @@ def create_performance_dict(parameter_dict, run_dict, sample=None, baselines=Non
     return(result_dict)
 
 
-def calculate_marginal_likelihoods(model, data: list, real_parameters, initial_parameters, estimated_parameters):
-    model.set_parameters(initial_parameters)
-    initial_marginal_likelihood = model.marginal_response_loglikelihood(
-        *data)
+def calculate_marginal_likelihoods(model, data: list, real_parameters, estimated_parameters):
+    # model.set_parameters(initial_parameters)
+    # initial_marginal_likelihood = model.marginal_response_loglikelihood(
+    #     *data)
     model.set_parameters(real_parameters)
     optimal_marginal_likelihood = model.marginal_response_loglikelihood(
         *data)
@@ -235,11 +217,11 @@ def calculate_marginal_likelihoods(model, data: list, real_parameters, initial_p
     marginal_likelihood_estimated = model.marginal_response_loglikelihood(
         *data)
     likelihood_dict = {"optimal": optimal_marginal_likelihood,
-                       "estimated": marginal_likelihood_estimated, "initial": initial_marginal_likelihood}
+                       "estimated": marginal_likelihood_estimated}
     return(likelihood_dict)
 
 
-def fit_early_model(sample, parameter_dict, stop_threshold, girth, person_method, sigma_constraint):
+def fit_early_model(sample, parameter_dict, stop_threshold, person_method, sigma_constraint):
     # Fit Parameters from Early_Model
     # Initialize model
     latent_dimension = parameter_dict["latent_dimension"]
@@ -276,7 +258,7 @@ def fit_early_model(sample, parameter_dict, stop_threshold, girth, person_method
     return(early_estimated_parameters, early_initial_parameters, run_dict, early_model)
 
 
-def fit_late_model(sample, parameter_dict, stop_threshold, girth, person_method, sigma_constraint):
+def fit_late_model(sample, parameter_dict, stop_threshold, person_method, sigma_constraint, real_theta=False):
     # Fit late Model
     estimated_early_sigma = parameter_dict["estimated_early_parameters"]["person_parameters"]["covariance"]
     item_dimension = parameter_dict["item_dimension"]
@@ -295,9 +277,15 @@ def fit_late_model(sample, parameter_dict, stop_threshold, girth, person_method,
         late_model, sigma_constraint=sigma_constraint)
     em = em_algorithm.em_algo(e_step=e_step, m_step=m_step, model=late_model)
 
+    # Decide on Competency
+    if real_theta:
+        theta = parameter_dict["sample"]["theta"]
+    else:
+        theta = parameter_dict["estimated_early_parameters"]["person_parameters"]["theta"]
+
     # Fit late model
     start_time = time.time()
-    em.fit([sample["late_responses"], parameter_dict["estimated_early_parameters"]["person_parameters"]["theta"]], max_iter=100,
+    em.fit([sample["late_responses"], theta], max_iter=100,
            stop_threshold=stop_threshold, person_method=person_method)
     run_time = (time.time() - start_time)
     s_hat = late_model.predict_gain(
@@ -306,7 +294,7 @@ def fit_late_model(sample, parameter_dict, stop_threshold, girth, person_method,
     # Measure Performance
     late_estimated_item_parameters = em.model.item_parameters
     late_estimated_person_parameters = em.model.person_parameters
-    late_estimated_person_parameters.update({"s": s_hat})
+    late_estimated_person_parameters.update({"s": pd.DataFrame(s_hat)})
 
     # Baselines
     run_dict = {"runtime": run_time,
@@ -317,9 +305,9 @@ def fit_late_model(sample, parameter_dict, stop_threshold, girth, person_method,
 
 
 def mirt_simulation_experiment(sample_size, item_dimension=20, latent_dimension=3,
-                               q_type="seperated", girth=True, stop_threshold=0.2,
+                               q_type="seperated", methods=["late_em", "initial"], stop_threshold=0.2,
                                ensure_id=False, q_share=0.0, person_method="newton_raphson",
-                               sigma_constraint="early_constraint") -> dict:
+                               sigma_constraint="early_constraint", real_theta=False) -> dict:
     # Simulate Responses
     simulation = item_response_simulation(
         item_dimension=item_dimension, latent_dimension=latent_dimension)
@@ -332,29 +320,126 @@ def mirt_simulation_experiment(sample_size, item_dimension=20, latent_dimension=
     print("Real latent covariance: {0}".format(real_latent_cov))
 
     # Sample responses
-    real_early_parameters = parameter_dict["real_early_parameters"]
+    #real_early_parameters = parameter_dict["real_early_parameters"]
 
+    # # Fit Parameters from Early_Model
+    # early_estimated_parameters, early_initial_parameters, early_run, early_model = fit_early_model(
+    #     parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold, girth=girth, person_method=person_method, sigma_constraint=sigma_constraint)
+    # parameter_dict.update(
+    #     {"estimated_early_parameters": early_estimated_parameters})
+
+    # # Fit late Model
+    # late_estimated_parameters, late_initial_parameters, late_run, late_model = fit_late_model(
+    #     parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold,
+    #     girth=girth, person_method=person_method, sigma_constraint=sigma_constraint, real_theta=real_theta)
+    # parameter_dict.update(
+    #     {"estimated_late_parameters": late_estimated_parameters})
+    result_dict = {"sample": sample}
+    if "late_em" in methods:
+        performance_dict_le = late_em_optimization(sample=sample, parameter_dict=parameter_dict, stop_threshold=stop_threshold,
+                                                   person_method=person_method, sigma_constraint=sigma_constraint, real_theta=False)
+        result_dict["late_em"] = performance_dict_le
+    if "initial" in methods:
+        performance_dict_init = initial_params_baseline(
+            sample=sample, parameter_dict=parameter_dict, sigma_constraint=sigma_constraint)
+        result_dict["initial"] = performance_dict_init
+
+    # early_baselines = {"initial": {
+    #     "parameters": early_initial_parameters}}
+
+    # late_baselines = {"initial": {"parameters": late_initial_parameters}}
+    # baselines = {"early": early_baselines, "late": late_baselines}
+    # if girth == True:
+    #     baselines["early"]["girth"] = {}
+
+    # run_dict = {"early": early_run, "late": late_run}
+    # performance_dict = create_performance_dict(
+    #     parameter_dict=parameter_dict, run_dict=run_dict, sample=sample, baselines=baselines, early_model=early_model, late_model=late_model)
+    return(result_dict)
+
+
+def initial_params_baseline(sample, parameter_dict, sigma_constraint):
+    # Initialize model
+    latent_dimension = parameter_dict["latent_dimension"]
+    item_dimension = parameter_dict["item_dimension"]
+    early_model = models.mirt_2pl(latent_dimension=latent_dimension, item_dimension=item_dimension,
+                                  Q=parameter_dict["real_early_parameters"]["item_parameters"]["q_matrix"])
+    early_model.initialize_from_responses(
+        response_data=sample["early_responses"])
+    early_initial_parameters = early_model.get_parameters()
+    theta_hat = early_model.predict_competency(sample["early_responses"])
+    early_initial_parameters["person_parameters"].update(
+        {"theta": pd.DataFrame(theta_hat)})
+    # Late Model
+    estimated_early_sigma = parameter_dict["estimated_early_parameters"]["person_parameters"]["covariance"]
+    item_dimension = parameter_dict["item_dimension"]
+    latent_dimension = parameter_dict["latent_dimension"]
+
+    # Initialize Model
+    late_model = mirt_2pl_gain(item_dimension=item_dimension, latent_dimension=latent_dimension, mu=1,
+                               early_sigma=estimated_early_sigma)
+    # TODO: Check if theta_hat can be used
+    late_model.initialize_from_responses(
+        response_data=sample["late_responses"], sigma=False)
+    late_initial_parameters = late_model.get_parameters()
+    s_hat = late_model.predict_gain(
+        sample["late_responses"], pd.DataFrame(theta_hat))
+    late_initial_parameters["person_parameters"].update(
+        {"s": pd.DataFrame(s_hat)})
+
+    parameter_dict.update(
+        {"estimated_early_parameters": early_initial_parameters})
+    parameter_dict.update(
+        {"estimated_late_parameters": late_initial_parameters})
+    run_dict = {"early": {"runtime": 0, "number_steps": 0},
+                "late": {"runtime": 0, "number_steps": 0}}
+    performance_dict = create_performance_dict(
+        parameter_dict=parameter_dict, run_dict=run_dict, sample=sample, early_model=early_model, late_model=late_model)
+    return(performance_dict)
+
+
+def late_em_optimization(sample, parameter_dict, stop_threshold, person_method, sigma_constraint, real_theta=False):
     # Fit Parameters from Early_Model
     early_estimated_parameters, early_initial_parameters, early_run, early_model = fit_early_model(
-        parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold, girth=girth, person_method=person_method, sigma_constraint=sigma_constraint)
+        parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold, person_method=person_method, sigma_constraint=sigma_constraint)
     parameter_dict.update(
         {"estimated_early_parameters": early_estimated_parameters})
 
     # Fit late Model
     late_estimated_parameters, late_initial_parameters, late_run, late_model = fit_late_model(
-        parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold, girth=girth, person_method=person_method, sigma_constraint=sigma_constraint)
+        parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold,
+        person_method=person_method, sigma_constraint=sigma_constraint, real_theta=real_theta)
     parameter_dict.update(
         {"estimated_late_parameters": late_estimated_parameters})
 
-    early_baselines = {"initial": {
-        "parameters": early_initial_parameters}}
-
-    late_baselines = {"initial": {"parameters": late_initial_parameters}}
-    baselines = {"early": early_baselines, "late": late_baselines}
-    if girth == True:
-        baselines["early"]["girth"] = {}
-
     run_dict = {"early": early_run, "late": late_run}
     performance_dict = create_performance_dict(
-        parameter_dict=parameter_dict, run_dict=run_dict, sample=sample, baselines=baselines, early_model=early_model, late_model=late_model)
+        parameter_dict=parameter_dict, run_dict=run_dict, sample=sample, early_model=early_model, late_model=late_model)
     return(performance_dict)
+
+
+def direct_marginal_optimization(model, response_data):
+    # Get initial parameters
+    x0 = params_to_vector(model)
+    response_data = response_data.to_numpy()
+    # Optimize with GA
+
+    def marginal_l_func(input_vector):
+        parameters = vector_to_params(input_vector, model)
+        try:
+            model.set_parameters(parameters)
+        except Exception:
+            return(np.inf)
+        result = -1*model.marginal_response_loglikelihood(response_data)
+        return(result)
+    es = cma.CMAEvolutionStrategy(x0=x0, sigma0=0.5)
+    es.optimize(marginal_l_func, maxfun=100000)
+    # Get result
+    result = es.result.xfavorite
+    return(vector_to_params(result, model))
+
+
+def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, girth, person_method, sigma_constraint):
+    early_estimated_parameters, early_initial_parameters, early_run, early_model = fit_early_model(sample=sample,
+                                                                                                   parameter_dict=parameter_dict, stop_threshold=stop_threshold,
+                                                                                                   girth=girth, person_method=person_method, sigma_constraint=sigma_constraint)

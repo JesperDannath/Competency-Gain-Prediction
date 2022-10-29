@@ -181,7 +181,7 @@ class e_step_ga_mml_gain(e_step_ga_mml):
             icc_values = self.model.icc(s=s, theta=theta, A=np.expand_dims(
                 a_item, axis=0), delta=np.array([delta_item]), save=False).transpose()[0]
             inv_icc = 1 - icc_values
-            icc_values[icc_values == 0] = np.float64(1.7976931348623157e-320)
+            #icc_values[icc_values == 0] = np.float64(1.7976931348623157e-320)
             #inv_icc[inv_icc == 0] = np.float64(1.7976931348623157e-320)
             log_likelihood_item = np.multiply(np.log(icc_values), r_item) + np.multiply(
                 np.log(inv_icc), np.subtract(r_0, r_item))  # TODO: Make this save
