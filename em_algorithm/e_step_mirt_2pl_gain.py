@@ -165,6 +165,30 @@ class e_step_ga_mml_gain(e_step_ga_mml):
             return(np.mean(integrant, axis=0))
         return(func)
 
+    # def q_item(self, item: int, s, theta, response_data, normalising_constant_array):
+    #     numerator = np.array(self.model.response_matrix_probability(s=s,
+    #                                                                 theta=theta.to_numpy(), response_matrix=response_data.to_numpy()))
+    #     numerator = np.multiply(numerator, self.model.latent_density(
+    #         type="early_conditional", s=s, theta=theta))
+    #     # This coefficient is different to r_0
+    #     numerator_item = np.multiply(
+    #         numerator, response_data.iloc[:, item].to_numpy().transpose())
+    #     denominator = normalising_constant_array
+    #     r_0 = np.divide(numerator, denominator)
+    #     r_item = np.divide(numerator_item, denominator)
+
+    #     def func(a_item: np.array, delta_item: np.array):
+    #         icc_values = self.model.icc(s=s, theta=theta, A=np.expand_dims(
+    #             a_item, axis=0), delta=np.array([delta_item]), save=False).transpose()[0]
+    #         inv_icc = 1 - icc_values
+    #         #icc_values[icc_values == 0] = np.float64(1.7976931348623157e-320)
+    #         #inv_icc[inv_icc == 0] = np.float64(1.7976931348623157e-320)
+    #         log_likelihood_item = np.multiply(np.log(icc_values), r_item) + np.multiply(
+    #             np.log(inv_icc), np.subtract(r_0, r_item))  # TODO: Make this save
+    #         log_likelihood_item = np.sum(log_likelihood_item, axis=1)
+    #         return(np.mean(log_likelihood_item))
+    #     return(func)
+
     def q_item(self, item: int, s, theta, response_data, normalising_constant_array):
         numerator = np.array(self.model.response_matrix_probability(s=s,
                                                                     theta=theta.to_numpy(), response_matrix=response_data.to_numpy()))
@@ -176,15 +200,18 @@ class e_step_ga_mml_gain(e_step_ga_mml):
         denominator = normalising_constant_array
         r_0 = np.divide(numerator, denominator)
         r_item = np.divide(numerator_item, denominator)
+        r_diff = np.subtract(r_0, r_item)
+        r = r_item.copy()
+        incorrect_indices = np.where(r_item == 0)
+        r[incorrect_indices] = r_diff[incorrect_indices]
+        #correct_indices = np.where(r_item != 0)
 
         def func(a_item: np.array, delta_item: np.array):
             icc_values = self.model.icc(s=s, theta=theta, A=np.expand_dims(
                 a_item, axis=0), delta=np.array([delta_item]), save=False).transpose()[0]
-            inv_icc = 1 - icc_values
-            #icc_values[icc_values == 0] = np.float64(1.7976931348623157e-320)
-            #inv_icc[inv_icc == 0] = np.float64(1.7976931348623157e-320)
-            log_likelihood_item = np.multiply(np.log(icc_values), r_item) + np.multiply(
-                np.log(inv_icc), np.subtract(r_0, r_item))  # TODO: Make this save
+            icc_values[incorrect_indices] = 1 - icc_values[incorrect_indices]
+            log_likelihood_item = np.multiply(
+                np.log(icc_values + np.float64(1.7976931348623157e-309)), r)
             log_likelihood_item = np.sum(log_likelihood_item, axis=1)
             return(np.mean(log_likelihood_item))
         return(func)

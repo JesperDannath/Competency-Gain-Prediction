@@ -194,7 +194,8 @@ class e_step_ga_mml(e_step):
         sum = np.sum(np.divide(numerator, denominator), axis=1)
 
         def func(sigma, return_sample=False):
-            factor = np.log(self.model.latent_density(theta, sigma=sigma, save=True))
+            factor = np.log(self.model.latent_density(
+                theta, sigma=sigma, save=True))
             product = np.multiply(factor, sum)
             if return_sample:
                 return(np.mean(product), product)
@@ -256,10 +257,12 @@ class e_step_ga_mml(e_step):
         return(func)
 
     def q_item(self, item: int, theta, r_0_theta, r_item_theta):
+        r_diff = np.subtract(r_0_theta, r_item_theta)
+
         def func(a_item: np.array, delta_item: np.array):
             icc_values = self.model.icc(theta=theta, A=np.expand_dims(
-                a_item, axis=0), delta=np.array([delta_item])).transpose()[0]
+                a_item, axis=0), delta=np.array([delta_item]), save=False).transpose()[0]
             log_likelihood_item = np.multiply(np.log(
-                icc_values), r_item_theta) + np.multiply(np.log(1-icc_values), np.subtract(r_0_theta, r_item_theta))
+                icc_values + np.float64(1.7976931348623157e-309)), r_item_theta) + np.multiply(np.log(1-icc_values + np.float64(1.7976931348623157e-309)), r_diff)
             return(np.mean(log_likelihood_item))
         return(func)

@@ -112,9 +112,12 @@ class mirt_2pl(irt_model):
         p = np.transpose(
             np.divide(1, np.add(1, np.exp(np.multiply(-1, linear_predictor)))))
         if save:
-            p[p == 0] = np.min(p[p > 0])  # np.float64(1.7976931348623157e-308)
-            p[p == 1] = np.max(p[p < 1])  # np.float64(
+            # p[p == 0] = np.min(p[p > 0])  # np.float64(1.7976931348623157e-308)
+            # p[p == 1] = np.max(p[p < 1])  # np.float64(
             # 1)-np.float64(1.7976931348623157e-16)
+            p[p == 0] = np.float64(1.7976931348623157e-308)
+            p[p == 1] = np.float64(
+                1)-np.float64(1.7976931348623157e-16)
         return(p)
 
     def latent_density(self, theta: np.array, sigma: np.array = np.empty(0), mu: np.array = np.empty(0), save=False):

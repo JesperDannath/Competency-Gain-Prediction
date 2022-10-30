@@ -18,8 +18,10 @@ class item_response_simulation():
             raise Exception("No Q-Matrix or Q-Matrix structure provided")
         if q_structure != "custom":
             self.response_simulation.initialize_random_q_structured_matrix(
-                structure=q_structure, ensure_id=ensure_id)
+                structure=q_structure, ensure_id=ensure_id, early=True)
             early_Q = self.response_simulation.get_Q("early")
+            self.response_simulation.initialize_random_q_structured_matrix(
+                structure=q_structure, ensure_id=ensure_id, early=False)
             late_Q = self.response_simulation.get_Q("late")
         self.person_parameters = self.respondend_population.initialize_random_person_parameters(
             early_Q=early_Q, late_Q=late_Q, q_share=q_share)

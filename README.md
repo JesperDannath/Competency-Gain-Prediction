@@ -14,7 +14,7 @@ Die aktuelle Funktionalität kann über simulation_experiments.ipynb nachvollzog
 - Check Quality of competency fitting, switch between real competency and estimated or baseline
 - Implementierung von Regularisierungen für Newton-Raphson Methode
 - Implementierung von close spd matrix für reset-projection method
-- 
+- Go through simulation framework, especially coorect answer rate is too high
 
 ## Update Roadmap
 - Trying real theta as upper baseline
