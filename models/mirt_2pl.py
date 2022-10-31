@@ -10,7 +10,7 @@ from scipy.optimize import minimize
 
 class mirt_2pl(irt_model):
 
-    def __init__(self, item_dimension: int, latent_dimension: int, A=np.empty(0), Q=np.empty(0), delta=np.empty(0), sigma=np.empty(0)) -> None:
+    def __init__(self, item_dimension: int, latent_dimension: int, A=np.empty(0), Q=np.empty(0), delta=np.empty(0), sigma=np.empty(0), empty=False) -> None:
         """
         Args:
             item_dimension (int): Number of items in test
@@ -21,7 +21,13 @@ class mirt_2pl(irt_model):
         """
         super().__init__(item_dimension, latent_dimension)
         self.initialize_parameters(A, Q, delta, sigma)
-        self.type = "normal"
+        if empty:
+            self.type = "empty"
+            self.person_parameters = {"covariance": np.nan}
+            self.item_parameters = {
+                "intercept_vector": np.nan, "discrimination_matrix": np.nan}
+        else:
+            self.type = "normal"
 
     def initialize_parameters(self, A, Q, delta, sigma):
         if Q.size == 0:
@@ -270,10 +276,10 @@ class mirt_2pl(irt_model):
         return(response_loglikelihood)
 
     def answer_log_likelihood(self, theta, answer_vector):
-        ICC_values = self.icc(theta)
-        latent_density = self.latent_density(theta)
-        log_likelihood = np.dot(answer_vector, np.log(ICC_values)[0]) + np.dot(
-            (1-answer_vector), np.log(1-ICC_values)[0]) + np.log(latent_density)
+        ICC_values = self.icc(np.expand_dims(theta, axis=0))[0]
+        latent_density = self.latent_density(theta, save=True)
+        log_likelihood = np.dot(answer_vector, np.log(ICC_values + np.float64(1.7976931348623157e-309))) + np.dot(
+            (1-answer_vector), np.log(1-ICC_values + np.float64(1.7976931348623157e-309))) + np.log(latent_density)
         return(log_likelihood)
 
     def predict_competency(self, response_data: pd.DataFrame) -> np.array:

@@ -261,10 +261,14 @@ class mirt_2pl_gain(mirt_2pl):
 
     def answer_log_likelihood(self, s, theta, answer_vector):
         # TODO: check why so many values are returned!
-        ICC_values = self.icc(theta=theta, s=s, cross=False)
-        latent_density = self.latent_density(theta=theta, s=s, type="full")
-        log_likelihood = np.dot(answer_vector, np.log(ICC_values)[0]) + np.dot(
-            (1-answer_vector), np.log(1-ICC_values)[0]) + np.log(latent_density)
+        ICC_values = self.icc(theta=np.expand_dims(
+            theta, axis=0), s=np.expand_dims(s, axis=0), cross=False)[0]
+        latent_density = self.latent_density(
+            theta=theta, s=s, type="full", save=True)
+        # log_likelihood = np.dot(answer_vector, np.log(ICC_values + np.float64(1.7976931348623157e-309))[0]) + np.dot(
+        #     (1-answer_vector), np.log(1-ICC_values + np.float64(1.7976931348623157e-309))[0]) + np.log(latent_density)
+        log_likelihood = np.dot(answer_vector, np.log(ICC_values + np.float64(1.7976931348623157e-309))) + np.dot(
+            (1-answer_vector), np.log(1-ICC_values + np.float64(1.7976931348623157e-309))) + np.log(latent_density)
         return(log_likelihood)
 
     def predict_gain(self, response_data: pd.DataFrame = pd.DataFrame(), theta: pd.DataFrame = pd.DataFrame()) -> np.array:

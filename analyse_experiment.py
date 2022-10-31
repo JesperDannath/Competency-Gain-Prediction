@@ -105,16 +105,18 @@ def parse_method_dict(performance_dict):
     rmse_late_delta = rmse_late_model["rmse_delta"]
     rmse_late_psi = rmse_late_model["rmse_psi"]
     rmse_late_sigma = rmse_late_model["rmse_sigma"]
+    rmse_theta = ep_dict["individual"]["rmse"]
+    rmse_gain = lp_dict["individual"]["rmse"]
     performance_vector = np.array([early_runtime, late_runtime, early_steps, late_steps, early_l_optimal, early_l_estimated,
                                    late_l_optimal, late_l_estimated,
                                    rmse_early_A, rmse_early_delta, rmse_early_sigma,
-                                   rmse_late_A, rmse_late_delta, rmse_late_psi, rmse_late_sigma])
+                                   rmse_late_A, rmse_late_delta, rmse_late_psi, rmse_late_sigma, rmse_theta, rmse_gain])
     performance_df = pd.DataFrame(
         data=pd.DataFrame(performance_vector).transpose())
     performance_df.columns = ["early_runtime", "late_runtime", "early_steps", "late_steps", "early_l_optimal", "early_l_estimated",
                               "late_l_optimal", "late_l_estimated",
                               "rmse_early_A", "rmse_early_delta", "rmse_early_sigma",
-                              "rmse_late_A", "rmse_late_delta", "rmse_psi", "rmse_late_sigma"]
+                              "rmse_late_A", "rmse_late_delta", "rmse_psi", "rmse_late_sigma", "rmse_theta", "rmse_gain"]
     return(performance_df)
 
 
@@ -189,8 +191,8 @@ def print_result_from_df(result_df, groupby=["method"], reference_method="late_e
     print(rmse_df.to_markdown())
     print("####")
     # Individual
-    # rmse_theta = ep_dict["individual"]["rmse"]
-    # rmse_gain = lp_dict["individual"]["rmse"]
-    # print("Performance on Individual Level \\")
-    # print("rmse theta: {0} \\".format(rmse_theta))
-    # print("rmse gain: {0}".format(rmse_gain))
+    rmse_theta = reference_method["rmse_theta"]
+    rmse_gain = reference_method["rmse_gain"]
+    print("Performance on Individual Level \\")
+    print("rmse theta: {0} \\".format(rmse_theta))
+    print("rmse gain: {0}".format(rmse_gain))
