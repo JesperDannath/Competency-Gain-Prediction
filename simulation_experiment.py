@@ -333,10 +333,14 @@ def mirt_simulation_experiment(sample_size, item_dimension=20, latent_dimension=
                                ensure_id=False, q_share=0.0, person_method="newton_raphson",
                                sigma_constraint="early_constraint", real_theta=False) -> dict:
     # Simulate Responses
+    if sigma_constraint == "esigma_spsi":
+        sigma_type = sigma_constraint
+    else:
+        sigma_type = "none"
     simulation = item_response_simulation(
         item_dimension=item_dimension, latent_dimension=latent_dimension)
     parameter_dict = simulation.set_up(
-        q_structure=q_type, q_share=q_share, ensure_id=ensure_id)
+        q_structure=q_type, q_share=q_share, ensure_id=ensure_id, sigma_constraint=sigma_type)
     sample = simulation.sample(sample_size=sample_size)
 
     # Define Population
@@ -413,6 +417,7 @@ def late_em_optimization(sample, parameter_dict, stop_threshold, person_method, 
     late_estimated_parameters, late_initial_parameters, late_run, late_model = fit_late_model(
         parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold,
         person_method=person_method, sigma_constraint=sigma_constraint, real_theta=real_theta)
+    late_model.get_cov("convolution")
     parameter_dict.update(
         {"estimated_late_parameters": late_estimated_parameters})
     run_dict = {"early": early_run, "late": late_run}
@@ -439,41 +444,51 @@ def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, person_method,
     late_estimated_parameters, late_initial_parameters, late_run, late_model = fit_early_model(sample=changed_sample,
                                                                                                parameter_dict=changed_parameter_dict, stop_threshold=stop_threshold,
                                                                                                person_method=person_method, sigma_constraint=sigma_constraint)
-    late_theta_hat = late_model.predict_competency(sample["late_responses"]) + 1
-    s_hat = late_theta_hat - early_theta_hat
-    
-    #Matrix-based approach for rotating correctly
     D = parameter_dict["latent_dimension"]
+    late_theta_hat = late_model.predict_competency(
+        sample["late_responses"]) + 1
+    # Double late theta because var(late_theta) = var(early_theta + gain) = var(early_theta) + var(gain) - 2*cov(early_theta, gain)
+    s_hat = 2*late_theta_hat - early_theta_hat
+    late_estimated_parameters["item_parameters"]["discrimination_matrix"] = 0.5 * \
+        late_estimated_parameters["item_parameters"]["discrimination_matrix"]
+    late_delta = late_estimated_parameters["item_parameters"]["intercept_vector"]
+    translated_delta = late_delta - \
+        np.dot(late_estimated_parameters["item_parameters"]
+               ["discrimination_matrix"], np.ones(D))
+    late_estimated_parameters["item_parameters"]["intercept_vector"] = translated_delta
+    # Matrix-based approach for rotating correctly
+
     #full_latent = np.concatenate((early_theta_hat, s_hat), axis=1)
     #rotation = np.identity(2*D)
     #rotation[D:2*D, D:2*D] = np.diag(1/np.std(s_hat, axis=0))
     #inv_rotation = np.linalg.inv(rotation)
     #full_latent_rot = np.dot(rotation, full_latent.transpose()).transpose()
-    #Discriminations also need to be rotated
+    # Discriminations also need to be rotated
     #late_A = late_estimated_parameters["item_parameters"]["discrimination_matrix"]
     #late_A_rot = np.dot(late_A, inv_rotation)
     #late_estimated_parameters["item_parameters"]["discrimination_matrix"] = late_A_rot
     #s_hat_rot = full_latent_rot[:,D:2*D]
     #theta_hat_rot = full_latent_rot[:,0:D]
-    #if (theta_hat_rot != early_theta_hat).any():
+    # if (theta_hat_rot != early_theta_hat).any():
     #    raise Exception("Rotation or scaling invalid")
-    #Now we need to translate to a mean of one for the late values
+    # Now we need to translate to a mean of one for the late values
     #s_hat_rot_trans = s_hat_rot + (1 - np.mean(s_hat_rot, axis=0))
-    late_delta = late_estimated_parameters["item_parameters"]["intercept_vector"]
-    #late_delta_trans = late_delta - \
-    #    np.dot(late_A_rot, 1-np.mean(s_hat_rot, axis=0)) 
+    # late_delta = late_estimated_parameters["item_parameters"]["intercept_vector"]
+    # late_delta_trans = late_delta - \
+    #    np.dot(late_A_rot, 1-np.mean(s_hat_rot, axis=0))
     #late_estimated_parameters["item_parameters"]["intercept_vector"] = late_delta_trans
-    #Calculate nex covariance
+    # Calculate nex covariance
     #sigma_psi = np.concatenate((theta_hat_rot, s_hat_rot_trans), axis=1).corr().to_numpy()
-    sigma_psi = pd.DataFrame(np.concatenate((early_theta_hat, s_hat), axis=1)).corr().to_numpy()
-    #s_hat = s_hat/np.std(s_hat, axis=0)  # TODO: Realise interpretations
+    sigma_psi = pd.DataFrame(np.concatenate(
+        (early_theta_hat, s_hat), axis=1)).corr().to_numpy()
+    # s_hat = s_hat/np.std(s_hat, axis=0)  # TODO: Realise interpretations
     #late_delta = late_estimated_parameters["item_parameters"]["intercept_vector"]
     #late_A = late_estimated_parameters["item_parameters"]["discrimination_matrix"]
-    #late_estimated_parameters["item_parameters"]["intercept_vector"] = late_delta - \
+    # late_estimated_parameters["item_parameters"]["intercept_vector"] = late_delta - \
     #    np.dot(late_A, 1-np.mean(s_hat, axis=0))
     #s_hat = s_hat + (1 - np.mean(s_hat, axis=0))
-    
-    #psi = pd.DataFrame(np.concatenate(
+
+    # psi = pd.DataFrame(np.concatenate(
     #    (early_theta_hat, s_hat), axis=1)).corr().to_numpy()[0:D, D:2*D]
     #late_sigma = pd.DataFrame(s_hat).corr().to_numpy()
     #sigma_psi = np.identity(2*D)
@@ -481,7 +496,7 @@ def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, person_method,
     #sigma_psi[0:D, D:2*D] = psi
     #sigma_psi[D:2*D, 0:D] = np.transpose(psi)
     #sigma_psi[D:2*D, D:2*D] = late_sigma
-    
+
     late_estimated_parameters["person_parameters"]["covariance"] = sigma_psi
     late_estimated_parameters["person_parameters"].update(
         {"s": pd.DataFrame(s_hat)})
@@ -490,9 +505,9 @@ def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, person_method,
     actual_late_model = mirt_2pl_gain(item_dimension=item_dimension, latent_dimension=D, mu=1,
                                       early_sigma=early_estimated_parameters["person_parameters"]["covariance"],
                                       Q=parameter_dict["real_late_parameters"]["item_parameters"]["q_matrix"])
-    #try:
+    # try:
     actual_late_model.set_parameters(late_estimated_parameters)
-    #except Exception:
+    # except Exception:
     #    late_estimated_parameters["person_parameters"]["covariance"] = pd.DataFrame(np.concatenate(
     #        (early_theta_hat, s_hat), axis=1)).corr().to_numpy()
     #    actual_late_model.set_parameters(late_estimated_parameters)

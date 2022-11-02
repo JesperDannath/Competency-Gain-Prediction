@@ -15,6 +15,20 @@ class mirt_2pl_gain(mirt_2pl):
         self.update_conditional_covariance()
         self.type = "gain"
 
+    def initialize_from_responses(self, late_response_data: pd.DataFrame, early_response_data:pd.DataFrame, sigma=True):
+        super().initialize_from_responses(late_response_data, sigma)
+        p_early = np.mean(early_response_data, axis=0)
+        p_late = np.mean(late_response_data, axis=0)
+        Q = self.item_parameters["q_matrix"]
+        p_early_domain = np.multiply(Q, p_early)
+        p_early_domain = np.mean(p_early_domain, axis=0)
+        p_late_domain = np.multiply(Q, p_late)
+        p_late_domain = np.mean(p_late_domain, axis=0)
+        rho = np.corr(np.mean(early_response_data, axis=1), np.mean(late_response_data, axis=1))
+        # rho und p sollten vectoren sein!
+        self.person_parameters["late_diag"] = 
+        self.person_parameters["psi_diag"] = 
+
     def initialize_gain_parameters(self, early_sigma=np.empty(0), late_sigma=np.empty(0), latent_corr=np.empty(0)):
         D = self.latent_dimension
         mu = np.ones(2*D)
@@ -49,7 +63,7 @@ class mirt_2pl_gain(mirt_2pl):
                              "late_conditional_covariance": late_conditional_cov}
         self.set_parameters({"person_parameters": person_parameters})
 
-    def check_sigma(self, sigma: np.array = np.empty(0), enforce_early_cov=False):
+    def check_sigma(self, sigma: np.array = np.empty(0), enforce_early_cov=False, callback=True):
         D = self.latent_dimension
         if sigma.size == 0:
             sigma = self.person_parameters["covariance"]
@@ -59,10 +73,12 @@ class mirt_2pl_gain(mirt_2pl):
         if not sigma.shape == (2*D, 2*D):
             raise Exception("Covariance is of wrong shape")
         if not np.array_equal(sigma.transpose(), sigma):
-            print(sigma)
+            if callback:
+                print(sigma)
             raise Exception("Covariance is not symmetric")
         if not np.all(np.linalg.eigvals(sigma) >= 0):
-            print(sigma)
+            if callback:
+                print(sigma)
             raise Exception("New Covariance not positive semidefinite")
         return(True)
 
@@ -87,11 +103,64 @@ class mirt_2pl_gain(mirt_2pl):
             raise Exception("Corr type for sigma not known")
         return(sigma_psi)
 
-    def fix_sigma(self, sigma_psi, sigma_constraint="early_constraint"):
+    def fix_sigma(self, sigma_psi, sigma_constraint="early_constraint", convolution_constraint=True):
         D = self.latent_dimension
         sigma_psi = super().fix_sigma(sigma_psi)
         if sigma_constraint == "early_constraint":
             sigma_psi[0:D, 0:D] = self.person_parameters["covariance"][0:D, 0:D]
+        if convolution_constraint:
+            # def func(Lambda):
+            #     Lambda = Lambda.reshape((2*D, 2*D))
+            #     new_sigma = np.dot(
+            #         np.dot(Lambda, sigma_psi), Lambda.transpose())
+            #     early_diff = np.sum(
+            #         np.square(new_sigma[0:D, 0:D].flatten() - sigma_psi[0:D, 0:D].flatten()))
+            #     late_diag_diff = np.sum(
+            #         np.square(np.diagonal(new_sigma[D:2*D, D:2*D]) - np.ones(D)))
+            #     convolution_matrix = np.concatenate(
+            #         (np.identity(D), np.identity(D)), axis=1)
+            #     convolution_sigma = np.dot(convolution_matrix, new_sigma)
+            #     convolution_sigma = np.dot(
+            #         convolution_sigma, convolution_matrix.transpose())
+            #     conv_diag_diff = np.sum(
+            #         np.square(np.diagonal(convolution_sigma) - 2.0*np.ones(D)))
+            #     # Regularise by Q-Matrix
+            #     QQ = np.concatenate(
+            #         (self.item_parameters["q_matrix"], self.item_parameters["q_matrix"]), axis=1)
+            #     inv_Lambda = np.linalg.inv(Lambda)
+            #     rot_QQ = np.dot(QQ, inv_Lambda)
+            #     q_violation_sum = np.sum(np.square(rot_QQ[np.where(QQ == 0)]))
+            #     print(q_violation_sum)
+            #     return(conv_diag_diff + early_diff + late_diag_diff + q_violation_sum)
+            late_diag = self.person_parameters["late_diag"]
+            psi_diag = self.person_parameters["psi_diag"]
+            def func(Lambda):
+                Lambda = Lambda.reshape((2*D, 2*D))
+                new_sigma = np.dot(
+                    np.dot(Lambda, sigma_psi), Lambda.transpose())
+                early_diff = np.sum(
+                    np.square(new_sigma[0:D, 0:D].flatten() - sigma_psi[0:D, 0:D].flatten()))
+                late_diag_diff = np.sum(
+                    np.square(np.diagonal(new_sigma[D:2*D, D:2*D]) - np.ones(D)))
+                convolution_matrix = np.concatenate(
+                    (np.identity(D), np.identity(D)), axis=1)
+                convolution_sigma = np.dot(convolution_matrix, new_sigma)
+                convolution_sigma = np.dot(
+                    convolution_sigma, convolution_matrix.transpose())
+                conv_diag_diff = np.sum(
+                    np.square(np.diagonal(convolution_sigma) - 2.0*np.ones(D)))
+                # Regularise by Q-Matrix
+                QQ = np.concatenate(
+                    (self.item_parameters["q_matrix"], self.item_parameters["q_matrix"]), axis=1)
+                inv_Lambda = np.linalg.inv(Lambda)
+                rot_QQ = np.dot(QQ, inv_Lambda)
+                q_violation_sum = np.sum(np.square(rot_QQ[np.where(QQ == 0)]))
+                print(q_violation_sum)
+                return(conv_diag_diff + early_diff + late_diag_diff + q_violation_sum)
+            x0 = np.identity(2*D).flatten()
+            Lambda = minimize(
+                fun=func, x0=x0, method="BFGS").x.reshape((2*D, 2*D))
+            sigma_psi = np.dot(np.dot(Lambda, sigma_psi), Lambda.transpose())
         return(sigma_psi)
 
     # def icc(self, theta, s, A=np.empty(0), delta=np.empty(0), cross=True):
@@ -156,6 +225,13 @@ class mirt_2pl_gain(mirt_2pl):
             return(self.person_parameters["late_conditional_covariance"])
         elif type == "full_cross":
             return(self.person_parameters["covariance"])
+        elif type == "convolution":
+            convolution_matrix = np.concatenate(
+                (np.identity(D), np.identity(D)), axis=1)
+            convolution_covariance = np.dot(convolution_matrix, sigma_psi)
+            convolution_covariance = np.dot(
+                convolution_covariance, convolution_matrix.transpose())
+            return(convolution_covariance)
         else:
             raise Exception("Covariance type does not exist")
 
