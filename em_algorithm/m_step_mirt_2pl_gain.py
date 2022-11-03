@@ -31,7 +31,7 @@ class m_step_ga_mml_gain(m_step_ga_mml):
         elif self.sigma_constraint == "unconstrained":
             type = "full"
         elif self.sigma_constraint == "esigma_spsi":
-            type = "only_late"
+            type = "only_psi_off_diag"
         else:
             raise Exception("Sigma constraint not known")
 

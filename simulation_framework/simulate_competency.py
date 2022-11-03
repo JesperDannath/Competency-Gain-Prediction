@@ -76,8 +76,9 @@ class respondent_population():
                 sigma = np.round(np.abs(sigma), 4)
                 sigma = np.add(
                     (1-q_share)*sigma, q_share*q_corr_late)
-                c = np.random.rand(1)*0.6  # TODO: How to know range for psi?
-                rho = np.random.rand(1)
+                # TODO: How to know range for psi?
+                c = 0.4+np.random.rand(1)*0.6
+                rho = 0.4+0.5*np.random.rand(1)
                 # create late sigma
                 late_sigma_var = c*(1-rho)*np.diagonal(sigma)
                 late_sigma_sd_vector = np.sqrt(late_sigma_var)
@@ -86,10 +87,10 @@ class respondent_population():
                 late_sigma = np.dot(
                     np.dot(sd_matrix, sigma), sd_matrix)
                 # Create random psi
-                #diag_psi = 0.5*c*rho*np.ones(D)
+                diag_psi = 0.5*c*rho*np.ones(D)
                 psi = 2*np.random.rand(D, D)-1
-                #psi = np.tril(psi) + np.tril(psi, -1).transpose()
-                #psi[np.diag_indices_from(psi)] = diag_psi
+                psi = np.tril(psi) + np.tril(psi, -1).transpose()
+                psi[np.diag_indices_from(psi)] = diag_psi
                 #fill in values
                 correlation_matrix[0:D, 0:D] = sigma
                 correlation_matrix[D:2*D, D:2*D] = late_sigma

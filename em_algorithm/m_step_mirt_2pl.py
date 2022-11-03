@@ -178,6 +178,8 @@ class m_step_ga_mml(m_step):
 
         if self.model.latent_dimension > 1:
             if person_method == "ga":
+                def constraint_function(corr): return self.model.check_sigma(
+                    self.model.corr_to_sigma(corr), callback=False)
                 if self.model.type == "normal":
                     x0 = self.model.person_parameters["covariance"][np.triu_indices_from(
                         self.model.person_parameters["covariance"], k=1)]
@@ -189,6 +191,11 @@ class m_step_ga_mml(m_step):
                     late_sigma_corr_u = late_sigma_corr_u[np.triu_indices_from(
                         late_sigma_corr_u, k=1)]
                     x0 = np.concatenate((psi_flat, late_sigma_corr_u), axis=0)
+                    if self.sigma_constraint == "esigma_spsi":
+                        x0 = self.model.person_parameters["covariance"][0:D, D:2*D]
+                        x0 = x0[np.triu_indices_from(x0, k=1)]
+                        def constraint_function(corr): return self.model.check_sigma(
+                            self.model.corr_to_sigma(corr, type="only_psi_off_diag"), callback=False)
                 # new_corr = self.genetic_algorithm(
                 #    q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
                 # if len(x0) > 1:
@@ -196,9 +203,13 @@ class m_step_ga_mml(m_step):
                 #     x0=x0, sigma0=2).optimize(lambda x: -1*q_0(x), maxfun=1000, n_jobs=0).result.xfavorite
                 # else:
                 new_corr = self.genetic_algorithm(
-                    q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
+                    q_0, x0=x0, constraint_function=constraint_function, p_crossover=0.0)
                 # new_sigma = minimize(func, x0=x0, method='BFGS').x
-                new_sigma = self.model.corr_to_sigma(new_corr)
+                if self.sigma_constraint == "esigma_spsi":
+                    new_sigma = self.model.corr_to_sigma(
+                        new_corr, type="only_psi_off_diag")
+                else:
+                    new_sigma = self.model.corr_to_sigma(new_corr)
                 log_likelihood += q_0(new_corr)
 
             elif person_method == "BFGS":

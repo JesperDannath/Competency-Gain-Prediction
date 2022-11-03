@@ -176,6 +176,18 @@ class response_simulation():
             self.late_model.item_parameters.update(item_parameters)
             return(self.late_model.item_parameters)
 
+    def scale_discriminations(self, sigma_psi):
+        self.late_model.set_parameters(
+            {"person_parameters": {"covariance": sigma_psi}})
+        # We have to change A, since it should be according to the
+        # size or the diagonal values of COV(\theta + s)
+        A = self.late_model.item_parameters["discrimination_matrix"]
+        convolution_sigma_diag = np.diag(np.diag(
+            self.late_model.get_cov("convolution")))
+        scaled_A = np.dot(A, np.linalg.inv(convolution_sigma_diag))
+        item_parameters = {"discrimination_matrix": scaled_A}
+        self.late_model.item_parameters.update(item_parameters)
+
     def sample(self, sample_size) -> pd.DataFrame:
         sample = {}
         sample["latent_trait"], sample["latent_gain"] = self.population.sample(

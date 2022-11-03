@@ -29,6 +29,8 @@ class item_response_simulation():
             Q=early_Q, early=True)
         self.late_item_parameters = self.response_simulation.initialize_random_item_parameters(
             Q=late_Q, early=False)
+        self.response_simulation.scale_discriminations(
+            sigma_psi=self.person_parameters["covariance"])  # TODO: Merge this with initialize_item_parameters
         return(self.get_real_parameters())
 
     def sample(self, sample_size: int):

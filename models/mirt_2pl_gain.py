@@ -16,28 +16,59 @@ class mirt_2pl_gain(mirt_2pl):
         self.person_parameters["early_sigma"] = early_sigma
         self.type = "gain"
 
-    def initialize_from_responses(self, late_response_data: pd.DataFrame, early_response_data: pd.DataFrame, sigma=True):
+    def initialize_from_responses(self, late_response_data: pd.DataFrame, early_response_data: pd.DataFrame, sigma=True, logit=True):
         super().initialize_from_responses(late_response_data, sigma)
         p_early = np.mean(early_response_data, axis=1)
         p_late = np.mean(late_response_data, axis=1)
         p_diff = np.subtract(p_late, p_early)
-        # Var(p_late) = Var(p_diff) + Var(p_early) + 2*Cov(p_diff, p_early)
-        var_p_early = np.var(p_early)
-        var_p_late = np.var(p_late)
-        var_p_diff = np.var(p_diff)
-        cov_early_diff = pd.DataFrame(
-            np.stack((p_diff, p_early), axis=1)).cov().to_numpy()[0, 1]
-        early_share = var_p_early/var_p_late
-        late_share = (var_p_diff + 2*cov_early_diff)/var_p_late
-        cov_share_from_late = cov_early_diff/(var_p_diff + 2*cov_early_diff)
+        if not logit:
+            # Var(p_late) = Var(p_diff) + Var(p_early) + 2*Cov(p_diff, p_early)
+            var_p_early = np.var(p_early)
+            var_p_late = np.var(p_late)
+            var_p_diff = np.var(p_diff)
+            cov_early_diff = pd.DataFrame(
+                np.stack((p_diff, p_early), axis=1)).cov().to_numpy()[0, 1]
+            early_share = var_p_early/var_p_late
+            late_share = (var_p_diff)/var_p_late
+            cov_share = cov_early_diff/var_p_late
+        else:
+            # valid_indices = np.where((p_early != 0) & (
+            #     p_early != 1) & (p_late != 0) & (p_late != 1))[0]
+            # p_early = p_early[valid_indices]
+            # p_late = p_late[valid_indices]
+            p_early[p_early == 0] = np.min(p_early[p_early != 0])
+            p_early[p_early == 1] = np.max(p_early[p_early != 1])
+            p_late[p_late == 0] = np.min(p_late[p_late != 0])
+            p_late[p_late == 1] = np.max(p_late[p_late != 1])
+            logit_early = np.log(np.divide(p_early, 1 -
+                                           p_early))
+            logit_late = np.log(np.divide(p_late, 1 -
+                                          p_late))
+            logit_diff = logit_late - logit_early
+            var_logit_early = np.var(logit_early)
+            var_logit_late = np.var(logit_late)
+            var_logit_diff = np.var(logit_diff)
+            cov_early_diff = pd.DataFrame(
+                np.stack((logit_diff, logit_early), axis=1)).cov().to_numpy()[0, 1]
+            early_share = var_logit_early/var_logit_late
+            late_share = (var_logit_diff)/var_logit_late
+            cov_share = cov_early_diff/var_logit_late
         # rho und p sollten vectoren sein!
         D = self.latent_dimension
         # self.person_parameters["late_diag"] = np.ones(
         #     D)*(1-cov_share_from_late)*late_share
-        self.person_parameters["late_diag"] = np.ones(
-            D)*late_share
-        # self.person_parameters["psi_diag"] = np.ones(
-        #    D)*cov_share_from_late*late_share
+        late_sigma_var = np.ones(D)*late_share/early_share
+        late_sigma_sd_vector = np.sqrt(late_sigma_var)
+        sd_matrix = np.diag(late_sigma_sd_vector)
+        late_sigma = np.dot(
+            np.dot(sd_matrix, self.person_parameters["early_sigma"]), sd_matrix)
+        self.person_parameters["late_sigma"] = late_sigma
+        self.person_parameters["covariance"][D:2*D, D:2*D] = late_sigma
+        psi_diag = np.ones(D)*cov_share/early_share
+        psi = np.zeros((D, D))
+        psi[np.diag_indices_from(psi)] = psi_diag
+        self.person_parameters["covariance"][0:D, D:2*D] = psi
+        self.person_parameters["covariance"][D:2*D, 0:D] = psi.transpose()
 
     def initialize_gain_parameters(self, early_sigma=np.empty(0), late_sigma=np.empty(0), latent_corr=np.empty(0)):
         D = self.latent_dimension
@@ -109,6 +140,14 @@ class mirt_2pl_gain(mirt_2pl):
             sigma_psi_triu[D:2*D, D:2*D] = late_sigma_triu
             sigma_psi = super().corr_to_sigma(
                 sigma_psi_triu[np.triu_indices_from(sigma_psi_triu, k=1)], check=check)
+        elif type == "only_psi_off_diag":
+            sigma_psi = self.person_parameters["covariance"]
+            psi = sigma_psi[0:D, D:2*D]
+            psi[np.tril_indices_from(psi, k=1)] = corr_vector
+            psi[np.triu_indices_from(
+                psi, k=-1)] = psi.transpose()[np.triu_indices_from(psi, k=-1)]
+            sigma_psi[0:D, D:2*D] = psi
+            sigma_psi[D:2*D, 0:D] = psi.transpose()
         elif type == "only_psi":
             pass
         elif type == "full":

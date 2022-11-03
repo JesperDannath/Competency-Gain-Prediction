@@ -78,16 +78,18 @@ class mirt_2pl(irt_model):
                 "Discriminations (A) do not match to Constraints (Q)")
         return(True)
 
-    def check_sigma(self, sigma: np.array = np.empty(0)):
+    def check_sigma(self, sigma: np.array = np.empty(0), callback=False):
         if sigma.size == 0:
             sigma = self.person_parameters["covariance"]
         if not sigma.shape == (self.latent_dimension, self.latent_dimension):
             raise Exception("Covariance is of wrong shape")
         if not np.array_equal(sigma.transpose(), sigma):
-            print(sigma)
+            if callback:
+                print(sigma)
             raise Exception("Covariance is not symmetric")
         if not np.all(np.linalg.eigvals(sigma) >= 0):
-            # print(sigma)
+            if callback:
+                print(sigma)
             raise Exception("New Covariance not positive semidefinite")
         return(True)
 
