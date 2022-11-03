@@ -3,9 +3,8 @@
 Die aktuelle Funktionalität kann über simulation_experiments.ipynb nachvollzogen werden
 
 ## Bekannte Probleme
-- Langsamer E-step für das Gain Modell
 - Convergence Probleme bei Newton-Raphson Methode
-- Schlechte Ergebnisse für Gain-Prediction
+- Mäßige Ergebnisse für Gain-Prediction
 
 
 ## Optimization Roadmap
@@ -15,6 +14,7 @@ Die aktuelle Funktionalität kann über simulation_experiments.ipynb nachvollzog
 - Implementierung von Regularisierungen für Newton-Raphson Methode
 - Implementierung von close spd matrix für reset-projection method
 - Go through simulation framework, especially correct answer rate is too high
+- Check distribution of predicted competency and gain, does it match?
 
 ## Update Roadmap
 - Beselines Framework (done)

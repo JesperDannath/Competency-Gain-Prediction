@@ -13,21 +13,31 @@ class mirt_2pl_gain(mirt_2pl):
         super().__init__(item_dimension, latent_dimension=latent_dimension, A=A, Q=Q)
         self.initialize_gain_parameters(early_sigma, late_sigma, latent_corr)
         self.update_conditional_covariance()
+        self.person_parameters["early_sigma"] = early_sigma
         self.type = "gain"
 
-    def initialize_from_responses(self, late_response_data: pd.DataFrame, early_response_data:pd.DataFrame, sigma=True):
+    def initialize_from_responses(self, late_response_data: pd.DataFrame, early_response_data: pd.DataFrame, sigma=True):
         super().initialize_from_responses(late_response_data, sigma)
-        p_early = np.mean(early_response_data, axis=0)
-        p_late = np.mean(late_response_data, axis=0)
-        Q = self.item_parameters["q_matrix"]
-        p_early_domain = np.multiply(Q, p_early)
-        p_early_domain = np.mean(p_early_domain, axis=0)
-        p_late_domain = np.multiply(Q, p_late)
-        p_late_domain = np.mean(p_late_domain, axis=0)
-        rho = np.corr(np.mean(early_response_data, axis=1), np.mean(late_response_data, axis=1))
+        p_early = np.mean(early_response_data, axis=1)
+        p_late = np.mean(late_response_data, axis=1)
+        p_diff = np.subtract(p_late, p_early)
+        # Var(p_late) = Var(p_diff) + Var(p_early) + 2*Cov(p_diff, p_early)
+        var_p_early = np.var(p_early)
+        var_p_late = np.var(p_late)
+        var_p_diff = np.var(p_diff)
+        cov_early_diff = pd.DataFrame(
+            np.stack((p_diff, p_early), axis=1)).cov().to_numpy()[0, 1]
+        early_share = var_p_early/var_p_late
+        late_share = (var_p_diff + 2*cov_early_diff)/var_p_late
+        cov_share_from_late = cov_early_diff/(var_p_diff + 2*cov_early_diff)
         # rho und p sollten vectoren sein!
-        self.person_parameters["late_diag"] = 
-        self.person_parameters["psi_diag"] = 
+        D = self.latent_dimension
+        # self.person_parameters["late_diag"] = np.ones(
+        #     D)*(1-cov_share_from_late)*late_share
+        self.person_parameters["late_diag"] = np.ones(
+            D)*late_share
+        # self.person_parameters["psi_diag"] = np.ones(
+        #    D)*cov_share_from_late*late_share
 
     def initialize_gain_parameters(self, early_sigma=np.empty(0), late_sigma=np.empty(0), latent_corr=np.empty(0)):
         D = self.latent_dimension
@@ -49,8 +59,12 @@ class mirt_2pl_gain(mirt_2pl):
     def update_conditional_covariance(self):
         D = self.latent_dimension
         psi = self.get_cov("corr")
-        inv_early_cov = np.linalg.inv(self.get_cov("early"))
-        inv_late_cov = np.linalg.inv(self.get_cov("late"))
+        try:
+            inv_early_cov = np.linalg.inv(self.get_cov("early"))
+            inv_late_cov = np.linalg.inv(self.get_cov("late"))
+        except Exception:
+            print(self.get_cov("late"))
+            raise Exception("Conditional cov could not be calculated")
         mu = self.person_parameters["mean"][D:2*D]
         early_mean_predictor = np.dot(psi, inv_late_cov)
         early_conditional_cov = self.get_cov(
@@ -105,8 +119,9 @@ class mirt_2pl_gain(mirt_2pl):
 
     def fix_sigma(self, sigma_psi, sigma_constraint="early_constraint", convolution_constraint=True):
         D = self.latent_dimension
-        sigma_psi = super().fix_sigma(sigma_psi)
-        if sigma_constraint == "early_constraint":
+        if sigma_constraint != "esigma_spsi":
+            sigma_psi = super().fix_sigma(sigma_psi)
+        if (sigma_constraint == "early_constraint"):
             sigma_psi[0:D, 0:D] = self.person_parameters["covariance"][0:D, 0:D]
         if convolution_constraint:
             # def func(Lambda):
@@ -133,30 +148,33 @@ class mirt_2pl_gain(mirt_2pl):
             #     print(q_violation_sum)
             #     return(conv_diag_diff + early_diff + late_diag_diff + q_violation_sum)
             late_diag = self.person_parameters["late_diag"]
-            psi_diag = self.person_parameters["psi_diag"]
+            early_sigma = self.person_parameters["early_sigma"]
+            #psi_diag = self.person_parameters["psi_diag"]
+
             def func(Lambda):
                 Lambda = Lambda.reshape((2*D, 2*D))
                 new_sigma = np.dot(
                     np.dot(Lambda, sigma_psi), Lambda.transpose())
                 early_diff = np.sum(
-                    np.square(new_sigma[0:D, 0:D].flatten() - sigma_psi[0:D, 0:D].flatten()))
+                    np.square(new_sigma[0:D, 0:D].flatten() - early_sigma.flatten()))
                 late_diag_diff = np.sum(
-                    np.square(np.diagonal(new_sigma[D:2*D, D:2*D]) - np.ones(D)))
+                    np.square(np.diagonal(new_sigma[D:2*D, D:2*D]) - late_diag))
+                # psi_diag_diff = np.sum(
+                #    np.square(np.diagonal(new_sigma[0:D, D:2*D]) - psi_diag))
                 convolution_matrix = np.concatenate(
                     (np.identity(D), np.identity(D)), axis=1)
                 convolution_sigma = np.dot(convolution_matrix, new_sigma)
                 convolution_sigma = np.dot(
                     convolution_sigma, convolution_matrix.transpose())
-                conv_diag_diff = np.sum(
-                    np.square(np.diagonal(convolution_sigma) - 2.0*np.ones(D)))
+                convolution_diff = np.sum(np.square(self.get_cov(
+                    "convolution").flatten() - convolution_sigma.flatten()))
                 # Regularise by Q-Matrix
                 QQ = np.concatenate(
                     (self.item_parameters["q_matrix"], self.item_parameters["q_matrix"]), axis=1)
                 inv_Lambda = np.linalg.inv(Lambda)
                 rot_QQ = np.dot(QQ, inv_Lambda)
                 q_violation_sum = np.sum(np.square(rot_QQ[np.where(QQ == 0)]))
-                print(q_violation_sum)
-                return(conv_diag_diff + early_diff + late_diag_diff + q_violation_sum)
+                return(early_diff + late_diag_diff + convolution_diff)
             x0 = np.identity(2*D).flatten()
             Lambda = minimize(
                 fun=func, x0=x0, method="BFGS").x.reshape((2*D, 2*D))

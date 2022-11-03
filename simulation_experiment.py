@@ -293,7 +293,7 @@ def fit_late_model(sample, parameter_dict, stop_threshold, person_method, sigma_
                                early_sigma=estimated_early_sigma, Q=parameter_dict["real_late_parameters"]["item_parameters"]["q_matrix"])
     # TODO: Check if theta_hat can be used
     late_model.initialize_from_responses(
-        response_data=sample["late_responses"], sigma=False)
+        late_response_data=sample["late_responses"], early_response_data=sample["early_responses"], sigma=False)
     late_initial_parameters = late_model.get_parameters()
     e_step = em_algorithm.e_step_ga_mml_gain(
         model=late_model)
@@ -389,7 +389,7 @@ def initial_params_baseline(sample, parameter_dict, sigma_constraint):
                                early_sigma=estimated_early_sigma)
     # TODO: Check if theta_hat can be used
     late_model.initialize_from_responses(
-        response_data=sample["late_responses"], sigma=False)
+        late_response_data=sample["late_responses"], early_response_data=sample["early_responses"], sigma=False)
     late_initial_parameters = late_model.get_parameters()
     s_hat = late_model.predict_gain(
         sample["late_responses"], pd.DataFrame(theta_hat))

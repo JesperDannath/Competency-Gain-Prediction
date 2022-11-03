@@ -244,7 +244,7 @@ class m_step_ga_mml(m_step):
         else:
             new_sigma = self.model.person_parameters["covariance"]
         # Ensure that new_sigma is positive
-        if len(new_sigma[new_sigma < 0]) > 0:
+        if (len(new_sigma[new_sigma < 0]) > 0) and (self.model.type == "normal"):
             new_sigma[new_sigma < 0] = 0
         # Ensure that sigma is valid
         try:
