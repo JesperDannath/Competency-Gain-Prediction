@@ -1,3 +1,4 @@
+from locale import normalize
 from irt_model import irt_model
 import numpy as np
 import pandas as pd
@@ -284,7 +285,7 @@ class mirt_2pl(irt_model):
             (1-answer_vector), np.log(1-ICC_values + np.float64(1.7976931348623157e-309))) + np.log(latent_density)
         return(log_likelihood)
 
-    def predict_competency(self, response_data: pd.DataFrame) -> np.array:
+    def predict_competency(self, response_data: pd.DataFrame, strict_variance=False) -> np.array:
         """Given the estimated item-parameters for a MIRT-Model and some response_data, this function will estimate the latent ability for every respondent.
 
         Args:
@@ -298,4 +299,12 @@ class mirt_2pl(irt_model):
             x0 = self.sample_competency()
             res = minimize(nll, x0=x0, method='BFGS')
             competency_matrix[i] = res.x
+        if strict_variance: 
+            estimated_var = np.diag(pd.DataFrame(competency_matrix).cov())
+            estimated_sd = np.sqrt(estimated_var)
+            normalized_competency = np.divide(competency_matrix, estimated_sd)
+            target_var = np.diag(self.person_parameters["covariance"])
+            target_sd = np.sqrt(target_var)
+            target_competency = np.multiply(normalized_competency, target_sd)
+            return(target_competency)
         return(competency_matrix)

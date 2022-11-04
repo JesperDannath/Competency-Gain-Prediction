@@ -108,6 +108,24 @@ class respondent_population():
                     (1-q_share)*correlation_matrix[0:D, 0:D], q_share*q_corr_early)
                 correlation_matrix[D:2*D, D:2*D] = np.add(
                     (1-q_share)*correlation_matrix[D:2*D, D:2*D], q_share*q_corr_late)
+            elif constraint_type == "unnormal_late":
+                sigma = make_sparse_spd_matrix(
+                    dim=self.latent_dimension, alpha=0.1, norm_diag=True, smallest_coef=0.0, largest_coef=0.9)
+                sigma = np.abs(np.round(sigma, 5))
+                psi = 2*np.random.rand(D, D) -1
+                psi = np.round(psi, 5)
+                late_sigma = 0.5*make_sparse_spd_matrix(
+                    dim=self.latent_dimension, alpha=0.1, norm_diag=False, smallest_coef=0.0, largest_coef=0.9) 
+                late_sigma = np.abs(np.round(late_sigma, 5))
+                correlation_matrix[0:D, 0:D] = sigma
+                correlation_matrix[D:2*D, D:2*D] = late_sigma
+                correlation_matrix[0:D, D:2*D] = psi
+                correlation_matrix[D:2*D, 0:D] = psi.transpose()
+                try:
+                    model.check_sigma(correlation_matrix, callback=False)
+                except Exception:
+                    return(self.initialize_random_person_parameters(
+                        early_Q=early_Q, late_Q=late_Q, q_share=q_share, constraint_type=constraint_type))
             self.latent_distribution = multivariate_normal(
                 mean=mean, cov=np.round(correlation_matrix, 4))
         return({"covariance": np.round(correlation_matrix, 4)})

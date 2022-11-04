@@ -200,6 +200,7 @@ class response_simulation():
         sample["sample_size"] = sample_size
         sample["latent_dimension"] = self.latent_dimension
         sample["item_dimension"] = self.item_dimension
+        sample["convolution_variance"] = np.diag(self.late_model.get_cov("convolution"))
         if list(np.ones(sample_size)) in list(sample["early_responses"].transpose()):
             raise Exception("All-correct item identified")
         if list(np.zeros(sample_size)) in list(sample["early_responses"].transpose()):
