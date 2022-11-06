@@ -245,20 +245,26 @@ def calculate_marginal_likelihoods(model, data: list, real_parameters, estimated
     return(likelihood_dict)
 
 
-def fit_early_model(sample, parameter_dict, stop_threshold, person_method, sigma_constraint):
+def fit_early_model(sample, parameter_dict, stop_threshold, person_method, sigma_constraint="unconstrained"):
     # Fit Parameters from Early_Model
     # Initialize model
     latent_dimension = parameter_dict["latent_dimension"]
     item_dimension = parameter_dict["item_dimension"]
+    if sigma_constraint == "identity":
+        init_sigma = False
+    else:
+        init_sigma = True
     early_model = models.mirt_2pl(latent_dimension=latent_dimension, item_dimension=item_dimension,
-                                  Q=parameter_dict["real_early_parameters"]["item_parameters"]["q_matrix"])
+                                  Q=parameter_dict["real_early_parameters"]["item_parameters"]["q_matrix"],
+                                  sigma=np.identity(latent_dimension))
     print("Covariance matrix is good: {0}".format(
         early_model.check_sigma(parameter_dict["real_early_parameters"]["person_parameters"]["covariance"])))
     early_model.initialize_from_responses(
-        response_data=sample["early_responses"])
+        response_data=sample["early_responses"], sigma=init_sigma)
     early_initial_parameters = early_model.get_parameters()
     e_step = em_algorithm.e_step_ga_mml(model=early_model)
-    m_step = em_algorithm.m_step_ga_mml(early_model)
+    m_step = em_algorithm.m_step_ga_mml(
+        early_model, sigma_constraint=sigma_constraint)
     em = em_algorithm.em_algo(e_step=e_step, m_step=m_step, model=early_model)
 
     # Fit early Model
@@ -278,7 +284,6 @@ def fit_early_model(sample, parameter_dict, stop_threshold, person_method, sigma
 
     run_dict = {"runtime": run_time,
                 "number_steps": em.n_steps}
-
     return(early_estimated_parameters, early_initial_parameters, run_dict, early_model)
 
 
@@ -290,12 +295,12 @@ def fit_late_model(sample, parameter_dict, stop_threshold, person_method, sigma_
 
     # Initialize Model
     late_model = mirt_2pl_gain(item_dimension=item_dimension, latent_dimension=latent_dimension, mu=1,
-                               early_sigma=estimated_early_sigma, 
+                               early_sigma=estimated_early_sigma,
                                Q=parameter_dict["real_late_parameters"]["item_parameters"]["q_matrix"])
     # TODO: Check if theta_hat can be used
     late_model.initialize_from_responses(
-        late_response_data=sample["late_responses"], early_response_data=sample["early_responses"], 
-                                convolution_variance=sample["convolution_variance"], sigma=False)
+        late_response_data=sample["late_responses"], early_response_data=sample["early_responses"],
+        convolution_variance=sample["convolution_variance"], sigma=False)
     late_initial_parameters = late_model.get_parameters()
     e_step = em_algorithm.e_step_ga_mml_gain(
         model=late_model)
@@ -332,7 +337,7 @@ def fit_late_model(sample, parameter_dict, stop_threshold, person_method, sigma_
 
 def mirt_simulation_experiment(sample_size, item_dimension=20, latent_dimension=3,
                                q_type="seperated", methods=["late_em", "initial", "difference", "real_early"], stop_threshold=0.2,
-                               ensure_id=False, q_share=0.0, person_method="newton_raphson",
+                               ensure_id=False, q_share=0.0, early_person_method="newton_raphson", late_person_method="ga",
                                sigma_constraint="early_constraint", real_theta=False) -> dict:
     # Simulate Responses
     if sigma_constraint == "esigma_spsi":
@@ -354,7 +359,8 @@ def mirt_simulation_experiment(sample_size, item_dimension=20, latent_dimension=
     result_dict = {"sample": sample}
     if "late_em" in methods:
         performance_dict_le = late_em_optimization(sample=sample, parameter_dict=parameter_dict, stop_threshold=stop_threshold,
-                                                   person_method=person_method, sigma_constraint=sigma_constraint, real_theta=False)
+                                                   early_person_method=early_person_method, late_person_method=late_person_method,
+                                                   sigma_constraint=sigma_constraint, real_theta=False)
         result_dict["late_em"] = performance_dict_le
     if "initial" in methods:
         performance_dict_init = initial_params_baseline(
@@ -362,13 +368,39 @@ def mirt_simulation_experiment(sample_size, item_dimension=20, latent_dimension=
         result_dict["initial"] = performance_dict_init
     if "difference":
         performance_dict_diff = two_mirt_2pl_baseline(
-            sample=sample, parameter_dict=parameter_dict, person_method=person_method, sigma_constraint=sigma_constraint, stop_threshold=stop_threshold)
+            sample=sample, parameter_dict=parameter_dict, early_person_method=early_person_method,
+            sigma_constraint=sigma_constraint, stop_threshold=stop_threshold)
         result_dict["difference"] = performance_dict_diff
     if "real_early" in methods:
         performance_dict_re = real_early_params_baseline(
-            sample=sample, parameter_dict=parameter_dict, person_method=person_method, sigma_constraint=sigma_constraint, stop_threshold=stop_threshold)
+            sample=sample, parameter_dict=parameter_dict, late_person_method=late_person_method,
+            sigma_constraint=sigma_constraint, stop_threshold=stop_threshold)
         result_dict["real_early"] = performance_dict_re
+    if "pure_competency" in methods:
+        performance_dict_pc = pure_competency_baseline(
+            sample=sample, parameter_dict=parameter_dict, late_person_method=late_person_method,
+            sigma_constraint=sigma_constraint, stop_threshold=stop_threshold)
+        result_dict["pure_competency"] = performance_dict_pc
     return(result_dict)
+
+
+def pure_competency_baseline(sample, parameter_dict, early_person_method, late_person_method,
+                             sigma_constraint, stop_threshold):
+    # Fit Parameters from Early_Model
+    early_estimated_parameters, early_initial_parameters, early_run, early_model = fit_early_model(
+        parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold, person_method=early_person_method, sigma_constraint="identity")
+    parameter_dict.update(
+        {"estimated_early_parameters": early_estimated_parameters})
+    # Fit late Model
+    late_estimated_parameters, late_initial_parameters, late_run, late_model = fit_late_model(
+        parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold,
+        person_method=late_person_method, sigma_constraint="diagonal", real_theta=False)
+    parameter_dict.update(
+        {"estimated_late_parameters": late_estimated_parameters})
+    run_dict = {"early": early_run, "late": late_run}
+    performance_dict = create_performance_dict(
+        parameter_dict=parameter_dict, run_dict=run_dict, sample=sample, early_model=early_model, late_model=late_model)
+    return(performance_dict)
 
 
 def initial_params_baseline(sample, parameter_dict, sigma_constraint):
@@ -384,7 +416,8 @@ def initial_params_baseline(sample, parameter_dict, sigma_constraint):
     early_initial_parameters["person_parameters"].update(
         {"theta": pd.DataFrame(theta_hat)})
     # Late Model
-    estimated_early_sigma = early_model.person_parameters["covariance"]#parameter_dict["estimated_early_parameters"]["person_parameters"]["covariance"]
+    # parameter_dict["estimated_early_parameters"]["person_parameters"]["covariance"]
+    estimated_early_sigma = early_model.person_parameters["covariance"]
     item_dimension = parameter_dict["item_dimension"]
     latent_dimension = parameter_dict["latent_dimension"]
 
@@ -393,7 +426,7 @@ def initial_params_baseline(sample, parameter_dict, sigma_constraint):
                                early_sigma=estimated_early_sigma)
     # TODO: Check if theta_hat can be used
     late_model.initialize_from_responses(
-        late_response_data=sample["late_responses"], early_response_data=sample["early_responses"], 
+        late_response_data=sample["late_responses"], early_response_data=sample["early_responses"],
         convolution_variance=sample["convolution_variance"],
         sigma=False)
     late_initial_parameters = late_model.get_parameters()
@@ -413,17 +446,16 @@ def initial_params_baseline(sample, parameter_dict, sigma_constraint):
     return(performance_dict)
 
 
-def late_em_optimization(sample, parameter_dict, stop_threshold, person_method, sigma_constraint, real_theta=False):
+def late_em_optimization(sample, parameter_dict, stop_threshold, early_person_method, late_person_method, sigma_constraint, real_theta=False):
     # Fit Parameters from Early_Model
     early_estimated_parameters, early_initial_parameters, early_run, early_model = fit_early_model(
-        parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold, person_method=person_method, sigma_constraint=sigma_constraint)
+        parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold, person_method=early_person_method, sigma_constraint=sigma_constraint)
     parameter_dict.update(
         {"estimated_early_parameters": early_estimated_parameters})
     # Fit late Model
     late_estimated_parameters, late_initial_parameters, late_run, late_model = fit_late_model(
         parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold,
-        person_method=person_method, sigma_constraint=sigma_constraint, real_theta=real_theta)
-    late_model.get_cov("convolution")
+        person_method=late_person_method, sigma_constraint=sigma_constraint, real_theta=real_theta)
     parameter_dict.update(
         {"estimated_late_parameters": late_estimated_parameters})
     run_dict = {"early": early_run, "late": late_run}
@@ -432,12 +464,13 @@ def late_em_optimization(sample, parameter_dict, stop_threshold, person_method, 
     return(performance_dict)
 
 
-def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, person_method, sigma_constraint):
+def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, early_person_method, sigma_constraint):
     # Estimate early parameters with standard-procedure
     early_estimated_parameters, early_initial_parameters, early_run, early_model = fit_early_model(sample=sample,
                                                                                                    parameter_dict=parameter_dict, stop_threshold=stop_threshold,
-                                                                                                   person_method=person_method, sigma_constraint=sigma_constraint)
-    early_theta_hat = early_model.predict_competency(sample["early_responses"], strict_variance=False)
+                                                                                                   person_method=early_person_method, sigma_constraint=sigma_constraint)
+    early_theta_hat = early_model.predict_competency(
+        sample["early_responses"], strict_variance=False)
     parameter_dict.update(
         {"estimated_early_parameters": early_estimated_parameters})
     early_estimated_parameters["person_parameters"].update(
@@ -449,28 +482,28 @@ def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, person_method,
     changed_sample["early_responses"] = sample["late_responses"]
     late_estimated_parameters, late_initial_parameters, late_run, late_model = fit_early_model(sample=changed_sample,
                                                                                                parameter_dict=changed_parameter_dict, stop_threshold=stop_threshold,
-                                                                                               person_method=person_method, sigma_constraint=sigma_constraint)
-    D = parameter_dict["latent_dimension"]    
+                                                                                               person_method=early_person_method, sigma_constraint=sigma_constraint)
+    D = parameter_dict["latent_dimension"]
 
-    #Shift Discriminations and Covariance accoring to real variance
+    # Shift Discriminations and Covariance accoring to real variance
     conv_sigma = late_model.person_parameters["covariance"]
     conv_A = late_model.item_parameters["discrimination_matrix"]
     real_conv_sigma_var = sample["convolution_variance"]
     conv_sd_vector = np.sqrt(real_conv_sigma_var)
     conv_sd_matrix = np.diag(conv_sd_vector)
-    conv_sigma_scaled = np.dot(
-                np.dot(conv_sd_matrix, conv_sigma), conv_sd_matrix)
+    conv_sigma_scaled = np.round(np.dot(
+        np.dot(conv_sd_matrix, conv_sigma), conv_sd_matrix), 5)
     conv_A_scaled = np.dot(conv_A, np.linalg.inv(conv_sd_matrix).transpose())
     scaled_parameters = {"person_parameters": {"covariance": conv_sigma_scaled},
-                    "item_parameters": {"discrimination_matrix": conv_A_scaled}}
+                         "item_parameters": {"discrimination_matrix": conv_A_scaled}}
     late_model.set_parameters(scaled_parameters)
 
     late_theta_hat = late_model.predict_competency(
         sample["late_responses"], strict_variance=False) + 1
     # Double late theta because var(late_theta) = var(early_theta + gain) = var(early_theta) + var(gain) - 2*cov(early_theta, gain)
-    
+
     s_hat = late_theta_hat - early_theta_hat
-    late_estimated_parameters["item_parameters"]["discrimination_matrix"] =  conv_A_scaled
+    late_estimated_parameters["item_parameters"]["discrimination_matrix"] = conv_A_scaled
     late_delta = late_estimated_parameters["item_parameters"]["intercept_vector"]
     translated_delta = late_delta - \
         np.dot(late_estimated_parameters["item_parameters"]
@@ -539,7 +572,7 @@ def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, person_method,
     return(performance_dict)
 
 
-def real_early_params_baseline(sample, parameter_dict, stop_threshold, person_method, sigma_constraint):
+def real_early_params_baseline(sample, parameter_dict, stop_threshold, late_person_method, sigma_constraint):
     # theta = sample["latent_trait"]
     # estimated_early_parameters = copy.deepcopy(
     #     parameter_dict["real_early_parameters"])
@@ -548,7 +581,7 @@ def real_early_params_baseline(sample, parameter_dict, stop_threshold, person_me
     late_estimated_parameters, late_initial_parameters, late_run, late_model = fit_late_model(sample=sample,
                                                                                               parameter_dict=parameter_dict,
                                                                                               stop_threshold=stop_threshold,
-                                                                                              person_method=person_method,
+                                                                                              person_method=late_person_method,
                                                                                               sigma_constraint=sigma_constraint,
                                                                                               real_theta=True)
     parameter_dict.update(

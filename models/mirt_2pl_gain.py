@@ -12,13 +12,14 @@ class mirt_2pl_gain(mirt_2pl):
     def __init__(self, item_dimension: int, latent_dimension: int,  mu: np.array = np.empty(0),  A=np.empty(0), Q=np.empty(0),
                  delta=np.empty(0), early_sigma=np.empty(0), late_sigma=np.empty(0), latent_corr=np.empty(0)):
         super().__init__(item_dimension, latent_dimension=latent_dimension, A=A, Q=Q)
-        self.initialize_gain_parameters(early_sigma, late_sigma, latent_corr)
-        self.update_conditional_covariance()
         self.person_parameters["early_sigma"] = early_sigma
         self.type = "gain"
+        self.person_parameters["convolution_variance"] = np.empty(0)
+        self.initialize_gain_parameters(early_sigma, late_sigma, latent_corr)
+        self.update_conditional_covariance()
 
-    def initialize_from_responses(self, late_response_data: pd.DataFrame, early_response_data: pd.DataFrame, 
-                                convolution_variance=np.empty(0), sigma=True, logit=True):
+    def initialize_from_responses(self, late_response_data: pd.DataFrame, early_response_data: pd.DataFrame,
+                                  convolution_variance=np.empty(0), sigma=True, logit=True):
         super().initialize_from_responses(late_response_data, sigma)
         D = self.latent_dimension
         if convolution_variance.size == 0:
@@ -41,9 +42,9 @@ class mirt_2pl_gain(mirt_2pl):
                 p_late[p_late == 0] = np.min(p_late[p_late != 0])
                 p_late[p_late == 1] = np.max(p_late[p_late != 1])
                 logit_early = np.log(np.divide(p_early, 1 -
-                                            p_early))
+                                               p_early))
                 logit_late = np.log(np.divide(p_late, 1 -
-                                            p_late))
+                                              p_late))
                 logit_diff = logit_late - logit_early
                 var_logit_early = np.var(logit_early)
                 var_logit_late = np.var(logit_late)
@@ -67,17 +68,25 @@ class mirt_2pl_gain(mirt_2pl):
             self.person_parameters["covariance"][0:D, D:2*D] = psi
             self.person_parameters["covariance"][D:2*D, 0:D] = psi.transpose()
         else:
-            self.person_parameters["late_variance"] = convolution_variance - 1
-            #late_variance = convolution_variance - 1
-            #psi = self.person_parameters["covariance"][0:D, D:2*D]
-            #psi[np.diag_indices_from(psi)] = 0*late_variance
-            #self.person_parameters["covariance"][0:D, D:2*D] = psi
-            #self.person_parameters["covariance"][D:2*D, 0:D] = psi.transpose()
-            #late_sigma = self.person_parameters["covariance"][D:2*D, D:2*D]
-            #late_sigma[np.diag_indices_from(late_sigma)] = late_variance
-            #self.person_parameters["covariance"][D:2*D, D:2*D] = late_sigma
-            #self.check_sigma()
-
+            self.person_parameters["convolution_variance"] = convolution_variance
+            late_variance = convolution_variance - 1
+            sigma_psi = np.identity(2*D)
+            if (late_variance > 0).all():
+                late_sigma = np.diag(late_variance)
+            else:
+                late_sigma = np.identity(D)
+                psi_diag = (late_variance-1)/2
+                psi = np.diag(psi_diag)
+                sigma_psi[0:D, D:2*D] = psi
+                sigma_psi[D:2*D, 0:D] = psi.transpose()
+            sigma_psi[0:D, 0:D] = self.person_parameters["early_sigma"]
+            sigma_psi[D:2*D, D:2*D] = late_sigma
+            self.person_parameters["covariance"] = sigma_psi
+            try:
+                self.check_sigma()
+            except Exception:
+                # Sigma_psi might violate the convolution variance constraint in this case
+                sigma_psi = np.identity(2*D)
 
     def initialize_gain_parameters(self, early_sigma=np.empty(0), late_sigma=np.empty(0), latent_corr=np.empty(0)):
         D = self.latent_dimension
@@ -134,6 +143,16 @@ class mirt_2pl_gain(mirt_2pl):
             if callback:
                 print(sigma)
             raise Exception("New Covariance not positive semidefinite")
+        if self.person_parameters["convolution_variance"].size != 0:
+            convolution_matrix = np.concatenate(
+                (np.identity(D), np.identity(D)), axis=1)
+            convolution_covariance = np.dot(convolution_matrix, sigma)
+            convolution_covariance = np.dot(
+                convolution_covariance, convolution_matrix.transpose())
+            variance_diff = np.abs(
+                np.diag(convolution_covariance)-self.person_parameters["convolution_variance"])
+            if (variance_diff > 0.01).any():
+                raise Exception("Convolution variance has wrong values")
         return(True)
 
     def corr_to_sigma(self, corr_vector, check=True, type="only_late"):
@@ -157,6 +176,20 @@ class mirt_2pl_gain(mirt_2pl):
                 psi, k=-1)] = psi.transpose()[np.triu_indices_from(psi, k=-1)]
             sigma_psi[0:D, D:2*D] = psi
             sigma_psi[D:2*D, 0:D] = psi.transpose()
+        elif type == "fixed_convolution_variance":
+            psi = corr_vector[0:D**2]
+            psi = psi.reshape((D, D))
+            late_sigma_triu = corr_vector[D**2: len(corr_vector)]
+            late_sigma_diag = self.person_parameters["convolution_variance"] - \
+                1 - 2*np.diag(psi)
+            late_sigma = np.diag(late_sigma_diag)
+            late_sigma[np.triu_indices_from(late_sigma, k=1)] = late_sigma_triu
+            late_sigma[np.tril_indices_from(late_sigma, k=-1)] = late_sigma.transpose()[
+                np.tril_indices_from(late_sigma, k=-1)]
+            sigma_psi = self.person_parameters["covariance"]
+            sigma_psi[D:2*D, D:2*D] = late_sigma
+            sigma_psi[0:D, D:2*D] = psi
+            sigma_psi[D:2*D, 0:D] = psi.transpose()
         elif type == "only_psi":
             pass
         elif type == "full":
@@ -167,37 +200,16 @@ class mirt_2pl_gain(mirt_2pl):
 
     def fix_sigma(self, sigma_psi, sigma_constraint="early_constraint", convolution_constraint=True):
         D = self.latent_dimension
-        if sigma_constraint != "esigma_spsi":
-            sigma_psi = super().fix_sigma(sigma_psi)
-        if (sigma_constraint == "early_constraint"):
+        J = self.item_dimension
+        # if sigma_constraint != "esigma_spsi":
+        #     sigma_psi = super().fix_sigma(sigma_psi)
+        if (sigma_constraint == "early_constraint") & (not convolution_constraint):
             sigma_psi[0:D, 0:D] = self.person_parameters["covariance"][0:D, 0:D]
         if convolution_constraint:
-            # def func(Lambda):
-            #     Lambda = Lambda.reshape((2*D, 2*D))
-            #     new_sigma = np.dot(
-            #         np.dot(Lambda, sigma_psi), Lambda.transpose())
-            #     early_diff = np.sum(
-            #         np.square(new_sigma[0:D, 0:D].flatten() - sigma_psi[0:D, 0:D].flatten()))
-            #     late_diag_diff = np.sum(
-            #         np.square(np.diagonal(new_sigma[D:2*D, D:2*D]) - np.ones(D)))
-            #     convolution_matrix = np.concatenate(
-            #         (np.identity(D), np.identity(D)), axis=1)
-            #     convolution_sigma = np.dot(convolution_matrix, new_sigma)
-            #     convolution_sigma = np.dot(
-            #         convolution_sigma, convolution_matrix.transpose())
-            #     conv_diag_diff = np.sum(
-            #         np.square(np.diagonal(convolution_sigma) - 2.0*np.ones(D)))
-            #     # Regularise by Q-Matrix
-            #     QQ = np.concatenate(
-            #         (self.item_parameters["q_matrix"], self.item_parameters["q_matrix"]), axis=1)
-            #     inv_Lambda = np.linalg.inv(Lambda)
-            #     rot_QQ = np.dot(QQ, inv_Lambda)
-            #     q_violation_sum = np.sum(np.square(rot_QQ[np.where(QQ == 0)]))
-            #     print(q_violation_sum)
-            #     return(conv_diag_diff + early_diff + late_diag_diff + q_violation_sum)
-            late_diag = self.person_parameters["late_diag"]
+            convolution_variance = self.person_parameters["convolution_variance"]
             early_sigma = self.person_parameters["early_sigma"]
-            #psi_diag = self.person_parameters["psi_diag"]
+            A = self.item_parameters["discrimination_matrix"]
+            AA = np.concatenate((A, A), axis=1)
 
             def func(Lambda):
                 Lambda = Lambda.reshape((2*D, 2*D))
@@ -205,28 +217,38 @@ class mirt_2pl_gain(mirt_2pl):
                     np.dot(Lambda, sigma_psi), Lambda.transpose())
                 early_diff = np.sum(
                     np.square(new_sigma[0:D, 0:D].flatten() - early_sigma.flatten()))
-                late_diag_diff = np.sum(
-                    np.square(np.diagonal(new_sigma[D:2*D, D:2*D]) - late_diag))
-                # psi_diag_diff = np.sum(
-                #    np.square(np.diagonal(new_sigma[0:D, D:2*D]) - psi_diag))
+                # late_diag_diff = np.sum(
+                #     np.square(np.diagonal(new_sigma[D:2*D, D:2*D]) - late_diag))
                 convolution_matrix = np.concatenate(
                     (np.identity(D), np.identity(D)), axis=1)
                 convolution_sigma = np.dot(convolution_matrix, new_sigma)
                 convolution_sigma = np.dot(
                     convolution_sigma, convolution_matrix.transpose())
-                convolution_diff = np.sum(np.square(self.get_cov(
-                    "convolution").flatten() - convolution_sigma.flatten()))
+                convolution_variance_diff = np.sum(
+                    np.square(convolution_variance - np.diag(convolution_sigma)))
                 # Regularise by Q-Matrix
                 QQ = np.concatenate(
                     (self.item_parameters["q_matrix"], self.item_parameters["q_matrix"]), axis=1)
                 inv_Lambda = np.linalg.inv(Lambda)
                 rot_QQ = np.dot(QQ, inv_Lambda)
                 q_violation_sum = np.sum(np.square(rot_QQ[np.where(QQ == 0)]))
-                return(early_diff + late_diag_diff + convolution_diff)
+                # Regularise by A Matrix
+                rot_AA = np.dot(AA, inv_Lambda)
+                rot_A1 = rot_AA[:, 0:D]
+                rot_A2 = rot_AA[:, D:2*D]
+                rot_A_diff = np.sum(
+                    np.square(rot_A1.flatten() - rot_A2.flatten()))
+                return(early_diff + convolution_variance_diff + q_violation_sum + rot_A_diff)
             x0 = np.identity(2*D).flatten()
             Lambda = minimize(
                 fun=func, x0=x0, method="BFGS").x.reshape((2*D, 2*D))
             sigma_psi = np.dot(np.dot(Lambda, sigma_psi), Lambda.transpose())
+            inv_Lambda = np.linalg.inv(Lambda)
+            rot_AA = np.dot(AA, inv_Lambda)
+            rot_A1 = rot_AA[:, 0:D]
+            rot_A2 = rot_AA[:, D:2*D]
+            rot_A = np.mean(np.stack((rot_A1, rot_A1), axis=2), axis=2)
+            self.item_parameters["discrimination_matrix"] = rot_A
         return(sigma_psi)
 
     # def icc(self, theta, s, A=np.empty(0), delta=np.empty(0), cross=True):

@@ -27,7 +27,7 @@ class m_step_ga_mml_gain(m_step_ga_mml):
     def q_0(self, pe_functions):
         D = self.model.latent_dimension
         if self.sigma_constraint == "early_constraint":
-            type = "only_late"
+            type = "fixed_convolution_variance"
         elif self.sigma_constraint == "unconstrained":
             type = "full"
         elif self.sigma_constraint == "esigma_spsi":
@@ -63,8 +63,8 @@ class m_step_ga_mml_gain(m_step_ga_mml):
                 cholesky_sigma_psi)] = cholesky_sigma_psi_vector
             sigma_psi = np.dot(cholesky_sigma_psi,
                                cholesky_sigma_psi.transpose())
-            if self.sigma_constraint == "early_constraint":
-                sigma_psi[0:D, 0:D] = self.model.person_parameters["covariance"][0:D, 0:D]
+            # if self.sigma_constraint == "early_constraint":
+            #    sigma_psi[0:D, 0:D] = self.model.person_parameters["covariance"][0:D, 0:D]
             # Apply chain rule
 
             def outer_func(C_vector):

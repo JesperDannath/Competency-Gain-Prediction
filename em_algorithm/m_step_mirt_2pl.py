@@ -19,14 +19,14 @@ if True:  # noqa: E402
 
 class m_step_ga_mml(m_step):
 
-    def __init__(self, model: mirt_2pl) -> None:
+    def __init__(self, model: mirt_2pl, sigma_constraint="") -> None:
         super().__init__()
         self.model = model
-        self.sigma_constraint = ""
+        self.sigma_constraint = sigma_constraint
 
     # TODO: Python package für ga ausprobieren: cmaes (https://github.com/CMA-ES/pycma)
     def genetic_algorithm(self, fitness_function, x0: np.array, constraint_function=lambda x: True,
-                          population_size: int = 40, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=0.1, max_iter=100):
+                          population_size: int = 40, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=0.1, max_iter=75):
         # Helping functions
         def mutate(individual):
             valid_individual = False
@@ -101,7 +101,10 @@ class m_step_ga_mml(m_step):
             else:
                 candidate_population = False
             iter += 1
-        return(population_base[0][1])
+        if fitness_function(x0) < fitness_function(population_base[0][1]):
+            return(population_base[0][1])
+        else:
+            return(x0)
 
     def newton_raphson(self, funct, x0, max_iter=100, alpha=0.001):
         x_t = x0.copy()
@@ -194,20 +197,24 @@ class m_step_ga_mml(m_step):
                     if self.sigma_constraint == "esigma_spsi":
                         x0 = self.model.person_parameters["covariance"][0:D, D:2*D]
                         x0 = x0[np.triu_indices_from(x0, k=1)]
+
                         def constraint_function(corr): return self.model.check_sigma(
                             self.model.corr_to_sigma(corr, type="only_psi_off_diag"), callback=False)
-                # new_corr = self.genetic_algorithm(
-                #    q_0, x0=x0, constraint_function=lambda corr: self.model.check_sigma(self.model.corr_to_sigma(corr)), p_crossover=0.0)
-                # if len(x0) > 1:
-                # new_corr = cma.CMAEvolutionStrategy(
-                #     x0=x0, sigma0=2).optimize(lambda x: -1*q_0(x), maxfun=1000, n_jobs=0).result.xfavorite
-                # else:
+                    if self.sigma_constraint == "early_constraint":
+                        def constraint_function(corr): return self.model.check_sigma(
+                            self.model.corr_to_sigma(corr, type="fixed_convolution_variance"), callback=False)
+                        late_sigma = self.model.person_parameters["covariance"][D:2*D, D:2*D]
+                        x0 = np.concatenate(
+                            (psi_flat, late_sigma[np.triu_indices_from(late_sigma, k=1)]), axis=0)
                 new_corr = self.genetic_algorithm(
-                    q_0, x0=x0, constraint_function=constraint_function, p_crossover=0.0)
+                    q_0, x0=x0, constraint_function=constraint_function, p_crossover=0.0, mutation_variance=0.01)
                 # new_sigma = minimize(func, x0=x0, method='BFGS').x
                 if self.sigma_constraint == "esigma_spsi":
                     new_sigma = self.model.corr_to_sigma(
                         new_corr, type="only_psi_off_diag")
+                elif self.sigma_constraint == "early_constraint":
+                    new_sigma = self.model.corr_to_sigma(
+                        new_corr, type="fixed_convolution_variance")
                 else:
                     new_sigma = self.model.corr_to_sigma(new_corr)
                 log_likelihood += q_0(new_corr)
@@ -224,6 +231,8 @@ class m_step_ga_mml(m_step):
                     new_sigma_cholesky)] = new_sigma_cholesky_vector
                 new_sigma = np.dot(new_sigma_cholesky,
                                    new_sigma_cholesky.transpose())
+                if self.model.type != "normal":
+                    print("h")
                 new_sigma = self.model.fix_sigma(
                     new_sigma, self.sigma_constraint)
 
@@ -286,7 +295,7 @@ class m_step_ga_mml(m_step):
 
             # if len(x0) == 1:
             new_item_parameters = self.genetic_algorithm(
-                fitness_function=q_item, x0=x0, constraint_function=lambda arg: np.all(arg[0:(len(arg)-1)] > 0))
+                fitness_function=q_item, x0=x0, constraint_function=lambda arg: np.all(arg[0:(len(arg)-1)] > 0), mutation_variance=1)
             # fitness_function=q_item, x0=x0, constraint_function=lambda arg: np.all(arg[0:len(arg)-1] > 0))
             # else:
             #     new_item_parameters = cma.CMAEvolutionStrategy(
