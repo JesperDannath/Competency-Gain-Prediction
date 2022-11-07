@@ -216,14 +216,18 @@ def create_performance_dict(parameter_dict, run_dict, sample=None, baselines=Non
     )
     theta_real = sample["latent_trait"]
     rmse_theta = rmse(theta_pred, theta_real)
-    s_pred = parameter_dict["estimated_late_parameters"]["person_parameters"]["s"].to_numpy(
+    s_hat = parameter_dict["estimated_late_parameters"]["person_parameters"]["s_estimated"].to_numpy(
+    )
+    s_pred_train = parameter_dict["estimated_late_parameters"]["person_parameters"]["s_pred_train"].to_numpy(
     )
     s_real = sample["latent_gain"]
-    rmse_s = rmse(s_pred, s_real)
+    rmse_s_hat = rmse(s_hat, s_real)
+    rmse_s_pred_train = rmse(s_pred_train, s_real)
     result_dict["early_performance"]["individual"] = {}
     result_dict["late_performance"]["individual"] = {}
     result_dict["early_performance"]["individual"]["rmse"] = rmse_theta
-    result_dict["late_performance"]["individual"]["rmse"] = rmse_s
+    result_dict["late_performance"]["individual"]["rmse_estimated"] = rmse_s_hat
+    result_dict["late_performance"]["individual"]["rmse_pred_train"] = rmse_s_pred_train
     # Runtime
     result_dict["early_performance"]["run"] = run_dict["early"]
     result_dict["late_performance"]["run"] = run_dict["late"]
@@ -269,7 +273,7 @@ def fit_early_model(sample, parameter_dict, stop_threshold, person_method, sigma
 
     # Fit early Model
     start_time = time.time()
-    em.fit([sample["early_responses"]], max_iter=100,
+    em.fit([sample["early_responses"]], max_iter=30,
            stop_threshold=stop_threshold, person_method=person_method)
     run_time = (time.time() - start_time)
     theta_hat = early_model.predict_competency(sample["early_responses"])
@@ -316,16 +320,19 @@ def fit_late_model(sample, parameter_dict, stop_threshold, person_method, sigma_
 
     # Fit late model
     start_time = time.time()
-    em.fit([sample["late_responses"], theta], max_iter=100,
+    em.fit([sample["late_responses"], theta], max_iter=30,
            stop_threshold=stop_threshold, person_method=person_method)
     run_time = (time.time() - start_time)
     s_hat = late_model.predict_gain(
-        sample["late_responses"], parameter_dict["estimated_early_parameters"]["person_parameters"]["theta"])  # TODO: implement this
+        sample["late_responses"], parameter_dict["estimated_early_parameters"]["person_parameters"]["theta"])
 
+    s_pred_train = late_model.predict_gain(
+        theta=parameter_dict["estimated_early_parameters"]["person_parameters"]["theta"])
     # Measure Performance
     late_estimated_item_parameters = em.model.item_parameters
     late_estimated_person_parameters = em.model.person_parameters
-    late_estimated_person_parameters.update({"s": pd.DataFrame(s_hat)})
+    late_estimated_person_parameters.update(
+        {"s_estimated": pd.DataFrame(s_hat), "s_pred_train": pd.DataFrame(s_pred_train)})
 
     # Baselines
     run_dict = {"runtime": run_time,
@@ -358,28 +365,33 @@ def mirt_simulation_experiment(sample_size, item_dimension=20, latent_dimension=
 
     result_dict = {"sample": sample}
     if "late_em" in methods:
+        print("Start late EM")
         performance_dict_le = late_em_optimization(sample=sample, parameter_dict=parameter_dict, stop_threshold=stop_threshold,
                                                    early_person_method=early_person_method, late_person_method=late_person_method,
                                                    sigma_constraint=sigma_constraint, real_theta=False)
         result_dict["late_em"] = performance_dict_le
     if "initial" in methods:
+        print("Start initial baseline")
         performance_dict_init = initial_params_baseline(
             sample=sample, parameter_dict=parameter_dict, sigma_constraint=sigma_constraint)
         result_dict["initial"] = performance_dict_init
     if "difference":
+        print("Start difference baseline")
         performance_dict_diff = two_mirt_2pl_baseline(
             sample=sample, parameter_dict=parameter_dict, early_person_method=early_person_method,
             sigma_constraint=sigma_constraint, stop_threshold=stop_threshold)
         result_dict["difference"] = performance_dict_diff
     if "real_early" in methods:
+        print("Start real early baseline")
         performance_dict_re = real_early_params_baseline(
             sample=sample, parameter_dict=parameter_dict, late_person_method=late_person_method,
             sigma_constraint=sigma_constraint, stop_threshold=stop_threshold)
         result_dict["real_early"] = performance_dict_re
     if "pure_competency" in methods:
+        print("Start pure competency baseline")
         performance_dict_pc = pure_competency_baseline(
             sample=sample, parameter_dict=parameter_dict, late_person_method=late_person_method,
-            sigma_constraint=sigma_constraint, stop_threshold=stop_threshold)
+            early_person_method=early_person_method, sigma_constraint=sigma_constraint, stop_threshold=stop_threshold)
         result_dict["pure_competency"] = performance_dict_pc
     return(result_dict)
 
@@ -394,7 +406,7 @@ def pure_competency_baseline(sample, parameter_dict, early_person_method, late_p
     # Fit late Model
     late_estimated_parameters, late_initial_parameters, late_run, late_model = fit_late_model(
         parameter_dict=parameter_dict, sample=sample, stop_threshold=stop_threshold,
-        person_method=late_person_method, sigma_constraint="diagonal", real_theta=False)
+        person_method="ga", sigma_constraint="diagonal", real_theta=False)
     parameter_dict.update(
         {"estimated_late_parameters": late_estimated_parameters})
     run_dict = {"early": early_run, "late": late_run}
@@ -432,8 +444,9 @@ def initial_params_baseline(sample, parameter_dict, sigma_constraint):
     late_initial_parameters = late_model.get_parameters()
     s_hat = late_model.predict_gain(
         sample["late_responses"], pd.DataFrame(theta_hat))
+    s_pred_train = late_model.predict_gain(theta=pd.DataFrame(theta_hat))
     late_initial_parameters["person_parameters"].update(
-        {"s": pd.DataFrame(s_hat)})
+        {"s_estimated": pd.DataFrame(s_hat), "s_pred_train": pd.DataFrame(s_pred_train)})
 
     parameter_dict.update(
         {"estimated_early_parameters": early_initial_parameters})
@@ -478,6 +491,8 @@ def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, early_person_m
     changed_parameter_dict = copy.deepcopy(parameter_dict)
     changed_parameter_dict["real_early_parameters"]["item_parameters"][
         "q_matrix"] = parameter_dict["real_late_parameters"]["item_parameters"]["q_matrix"]
+    changed_parameter_dict["real_early_parameters"]["item_parameters"][
+        "discrimination_matrix"] = parameter_dict["real_late_parameters"]["item_parameters"]["discrimination_matrix"]
     changed_sample = copy.deepcopy(sample)
     changed_sample["early_responses"] = sample["late_responses"]
     late_estimated_parameters, late_initial_parameters, late_run, late_model = fit_early_model(sample=changed_sample,
@@ -551,8 +566,7 @@ def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, early_person_m
     #sigma_psi[D:2*D, D:2*D] = late_sigma
 
     late_estimated_parameters["person_parameters"]["covariance"] = sigma_psi
-    late_estimated_parameters["person_parameters"].update(
-        {"s": pd.DataFrame(s_hat)})
+
     ######################
     item_dimension = parameter_dict["item_dimension"]
     actual_late_model = mirt_2pl_gain(item_dimension=item_dimension, latent_dimension=D, mu=1,
@@ -560,6 +574,10 @@ def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, early_person_m
                                       Q=parameter_dict["real_late_parameters"]["item_parameters"]["q_matrix"])
     # try:
     actual_late_model.set_parameters(late_estimated_parameters)
+    s_pred_train = actual_late_model.predict_gain(
+        theta=pd.DataFrame(early_theta_hat))
+    late_estimated_parameters["person_parameters"].update(
+        {"s_estimated": pd.DataFrame(s_hat), "s_pred_train": pd.DataFrame(s_pred_train)})
     # except Exception:
     #    late_estimated_parameters["person_parameters"]["covariance"] = pd.DataFrame(np.concatenate(
     #        (early_theta_hat, s_hat), axis=1)).corr().to_numpy()

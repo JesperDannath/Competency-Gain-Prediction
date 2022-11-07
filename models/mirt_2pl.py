@@ -75,6 +75,10 @@ class mirt_2pl(irt_model):
         if Q.size == 0:
             Q = self.item_parameters["q_matrix"]
         if not np.array_equal(np.multiply(A, Q), A):
+            print("Discrimination Matrix:")
+            print(A)
+            print("Q-Matrix:")
+            print(Q)
             raise Exception(
                 "Discriminations (A) do not match to Constraints (Q)")
         return(True)
@@ -267,6 +271,8 @@ class mirt_2pl(irt_model):
                 print("mask: {0}".format(mask))
                 print("Discriminations: {0}".format(discriminations))
                 raise Exception("Could not fill zero Discriminations")
+            if (np.multiply(self.item_parameters["q_matrix"][item], a_item) != a_item).all():
+                raise Exception("Placing Discriminations has failed")
             return(a_item)
 
     def marginal_response_loglikelihood(self, response_data: pd.DataFrame(), N=1000):
@@ -299,7 +305,7 @@ class mirt_2pl(irt_model):
             x0 = self.sample_competency()
             res = minimize(nll, x0=x0, method='BFGS')
             competency_matrix[i] = res.x
-        if strict_variance: 
+        if strict_variance:
             estimated_var = np.diag(pd.DataFrame(competency_matrix).cov())
             estimated_sd = np.sqrt(estimated_var)
             normalized_competency = np.divide(competency_matrix, estimated_sd)

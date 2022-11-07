@@ -86,7 +86,10 @@ class mirt_2pl_gain(mirt_2pl):
                 self.check_sigma()
             except Exception:
                 # Sigma_psi might violate the convolution variance constraint in this case
-                sigma_psi = np.identity(2*D)
+                sigma_psi = 0.5 * \
+                    np.diag(
+                        np.concatenate((convolution_variance, convolution_variance), axis=0))
+                self.person_parameters["covariance"] = sigma_psi
 
     def initialize_gain_parameters(self, early_sigma=np.empty(0), late_sigma=np.empty(0), latent_corr=np.empty(0)):
         D = self.latent_dimension
@@ -190,6 +193,16 @@ class mirt_2pl_gain(mirt_2pl):
             sigma_psi[D:2*D, D:2*D] = late_sigma
             sigma_psi[0:D, D:2*D] = psi
             sigma_psi[D:2*D, 0:D] = psi.transpose()
+        elif type == "diagonal":
+            late_sigma_diag = corr_vector
+            late_sigma = np.diag(corr_vector)
+            psi_diag = (self.person_parameters["convolution_variance"] -
+                        1 - late_sigma_diag)/2
+            psi = np.diag(psi_diag)
+            sigma_psi = np.identity(2*D)
+            sigma_psi[D:2*D, D:2*D] = late_sigma
+            sigma_psi[0:D, D:2*D] = psi
+            sigma_psi[D:2*D, 0:D] = psi.transpose()
         elif type == "only_psi":
             pass
         elif type == "full":
@@ -247,7 +260,7 @@ class mirt_2pl_gain(mirt_2pl):
             rot_AA = np.dot(AA, inv_Lambda)
             rot_A1 = rot_AA[:, 0:D]
             rot_A2 = rot_AA[:, D:2*D]
-            rot_A = np.mean(np.stack((rot_A1, rot_A1), axis=2), axis=2)
+            rot_A = np.mean(np.stack((rot_A1, rot_A2), axis=2), axis=2)
             self.item_parameters["discrimination_matrix"] = rot_A
         return(sigma_psi)
 
@@ -441,14 +454,25 @@ class mirt_2pl_gain(mirt_2pl):
         Args:
             response_data (pd.DataFrame or np.array): Response data from Item's 
         """
-        gain_matrix = np.zeros(
-            shape=(response_data.shape[0], self.latent_dimension))
-        for i, response_pattern in enumerate(response_data.to_numpy()):
-            def nll(x): return -1*self.answer_log_likelihood(s=x,
-                                                             theta=theta.to_numpy()[
-                                                                 i],
-                                                             answer_vector=response_pattern)
-            x0 = self.sample_gain()
-            res = minimize(nll, x0=x0, method='BFGS')
-            gain_matrix[i] = res.x
+        if response_data.size > 0:
+            gain_matrix = np.zeros(
+                shape=(response_data.shape[0], self.latent_dimension))
+            for i, response_pattern in enumerate(response_data.to_numpy()):
+                def nll(x): return -1*self.answer_log_likelihood(s=x,
+                                                                 theta=theta.to_numpy()[
+                                                                     i],
+                                                                 answer_vector=response_pattern)
+                x0 = self.sample_gain()
+                res = minimize(nll, x0=x0, method='BFGS')
+                gain_matrix[i] = res.x
+        else:
+            D = self.latent_dimension
+            late_conditional_covariance = self.person_parameters["late_conditional_covariance"]
+            early_sigma = self.person_parameters["covariance"][0:D, 0:D]
+            inv_early_sigma = np.linalg.inv(early_sigma)
+            psi = self.person_parameters["covariance"][0:D, D: 2*D]
+            mu = self.person_parameters["mean"]
+            gain_matrix = np.expand_dims(mu[D:2*D], axis=1) + np.dot(np.dot(psi, inv_early_sigma),
+                                                                     theta.to_numpy().transpose())
+            gain_matrix = gain_matrix.transpose()
         return(gain_matrix)

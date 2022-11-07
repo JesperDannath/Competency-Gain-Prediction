@@ -179,7 +179,7 @@ class m_step_ga_mml(m_step):
         q_0_cholesky = self.q_0_cholesky(pe_functions)
         q_0_gradient_cholesky = self.q_0_gradient_cholesky(pe_functions)
 
-        if self.model.latent_dimension > 1:
+        if self.model.latent_dimension > 1 and (self.sigma_constraint != "identity"):
             if person_method == "ga":
                 def constraint_function(corr): return self.model.check_sigma(
                     self.model.corr_to_sigma(corr), callback=False)
@@ -206,6 +206,11 @@ class m_step_ga_mml(m_step):
                         late_sigma = self.model.person_parameters["covariance"][D:2*D, D:2*D]
                         x0 = np.concatenate(
                             (psi_flat, late_sigma[np.triu_indices_from(late_sigma, k=1)]), axis=0)
+                    if self.sigma_constraint == "diagonal":
+                        def constraint_function(corr): return self.model.check_sigma(
+                            self.model.corr_to_sigma(corr, type="diagonal"), callback=False)
+                        late_sigma = self.model.person_parameters["covariance"][D:2*D, D:2*D]
+                        x0 = np.diag(late_sigma)
                 new_corr = self.genetic_algorithm(
                     q_0, x0=x0, constraint_function=constraint_function, p_crossover=0.0, mutation_variance=0.01)
                 # new_sigma = minimize(func, x0=x0, method='BFGS').x
@@ -215,6 +220,9 @@ class m_step_ga_mml(m_step):
                 elif self.sigma_constraint == "early_constraint":
                     new_sigma = self.model.corr_to_sigma(
                         new_corr, type="fixed_convolution_variance")
+                elif self.sigma_constraint == "diagonal":
+                    new_sigma = self.model.corr_to_sigma(
+                        new_corr, type="diagonal")
                 else:
                     new_sigma = self.model.corr_to_sigma(new_corr)
                 log_likelihood += q_0(new_corr)
@@ -231,8 +239,6 @@ class m_step_ga_mml(m_step):
                     new_sigma_cholesky)] = new_sigma_cholesky_vector
                 new_sigma = np.dot(new_sigma_cholesky,
                                    new_sigma_cholesky.transpose())
-                if self.model.type != "normal":
-                    print("h")
                 new_sigma = self.model.fix_sigma(
                     new_sigma, self.sigma_constraint)
 

@@ -45,11 +45,17 @@ class em_algorithm():
             # print("M-step")
             current_parameters, log_likelihood = self.m_step.step(
                 pe_functions=posterior_expectation, person_method=person_method)
-            self.model.set_parameters(current_parameters)
+            try:
+                self.model.set_parameters(current_parameters)
+            except Exception as e:
+                print("Invalid Parameters after M-Step")
+                raise(e)
             marginal_loglikelihood = self.model.marginal_response_loglikelihood(
                 *data)
             marginal_loglikelihood_diff = abs(
                 marginal_loglikelihood - last_step_marginal_loglikelihood)
+            marginal_loglikelihood_quotient = np.divide(
+                last_step_marginal_loglikelihood, marginal_loglikelihood)
             abs_parameter_diff, parameter_diff = self.give_parameter_diff(
                 current_parameters=current_parameters, last_step_parameters=last_step_parameters)
             # if (parameter_diff <= 0.2) or (i >= max_iter-1):
@@ -60,7 +66,7 @@ class em_algorithm():
             #    current_parameters = copy.deepcopy(last_step_parameters)
             #    marginal_loglikelihood = last_step_marginal_loglikelihood.copy()
             # TODO: make stopping criterion in percent-change
-            if (marginal_loglikelihood_diff <= stop_threshold) or (i >= max_iter):
+            if (marginal_loglikelihood_quotient <= 1+stop_threshold) or (i >= max_iter):
                 candidate_count += 1
                 if candidate_count >= 3:
                     converged = True
@@ -71,6 +77,8 @@ class em_algorithm():
             i = i+1
             print("Step: {0}: current parameter_diff: {1}, current marginal loglikelihood: {2}".format(
                 i, abs_parameter_diff,  marginal_loglikelihood))
+            if (marginal_loglikelihood in [np.inf, -np.inf]) or (np.isnan(abs_parameter_diff)):
+                raise Exception("Likelihood diverged")
             self.n_steps = i+1
 
     def give_parameter_diff(self, current_parameters, last_step_parameters):
