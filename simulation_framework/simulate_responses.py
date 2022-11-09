@@ -38,7 +38,7 @@ class response_simulation():
                                                1/self.latent_dimension for i in range(0, self.latent_dimension)])
             if 0 in item_frequencies:
                 self.initialize_random_q_structured_matrix(
-                    structure="seperated")
+                    structure="seperated", early=early, ensure_id=ensure_id)
                 return
             Q = []
             for i, frequency in enumerate(item_frequencies):
@@ -60,7 +60,7 @@ class response_simulation():
             stair_frequencies = multinomial.rvs(pyramid_items, p=[
                 1/self.latent_dimension for i in range(0, self.latent_dimension)])
             if 0 in stair_frequencies:
-                self.initialize_random_q_structured_matrix(structure="pyramid")
+                self.initialize_random_q_structured_matrix(structure="pyramid", early=early, ensure_id=ensure_id)
                 return
             for i, frequency in enumerate(stair_frequencies):
                 for repeat in range(0, frequency):
@@ -76,7 +76,7 @@ class response_simulation():
             pattern_frequencies = multinomial.rvs(self.item_dimension, p=[
                 1/n_pattern for i in range(0, n_pattern)])
             if 0 in pattern_frequencies:
-                self.initialize_random_q_structured_matrix(structure="full")
+                self.initialize_random_q_structured_matrix(structure="full", early=early, ensure_id=ensure_id)
                 return
             patterns = list(itertools.product(
                 [0, 1], repeat=self.latent_dimension))
@@ -157,14 +157,14 @@ class response_simulation():
                 Q = self.late_model.item_parameters["q_matrix"]
         # 1. Sample relative difficulties
         delta = multivariate_normal(mean=np.zeros(
-            1), cov=np.ones(1)).rvs(self.item_dimension)
+            1)-0.7, cov=np.ones(1)).rvs(self.item_dimension)
         # t-Verteilung oder Gleichverteilung mal ausprobieren
         A = np.zeros((self.item_dimension, self.latent_dimension))
         #delta = np.zeros(self.item_dimension)
         # 2. Get smallest relative difficulty per item
         for i in range(0, self.item_dimension):
             A[i] = np.exp(multivariate_normal(
-                mean=1*np.ones(self.latent_dimension), cov=0.5*np.identity(self.latent_dimension)).rvs())
+                mean=np.zeros(self.latent_dimension), cov=1*np.identity(self.latent_dimension)).rvs())
         item_parameters = {"discrimination_matrix": np.multiply(A, Q),
                            "intercept_vector": delta}
         if len(A[A <= 0]) > 0:
@@ -195,8 +195,14 @@ class response_simulation():
         p_early = self.early_model.icc(theta=sample["latent_trait"])
         p_late = self.late_model.icc(
             theta=sample["latent_trait"], s=sample["latent_gain"], cross=False)
-        sample["early_responses"] = pd.DataFrame(bernoulli(p=p_early).rvs())
-        sample["late_responses"] = pd.DataFrame(bernoulli(p=p_late).rvs())
+        good_sample=False
+        while not good_sample:
+            sample["early_responses"] = pd.DataFrame(bernoulli(p=p_early).rvs())
+            sample["late_responses"] = pd.DataFrame(bernoulli(p=p_late).rvs())
+            good_early_sample = (sample["early_responses"].mean() != 0).all() and (sample["early_responses"].mean() != 1).all() 
+            good_late_sample = (sample["late_responses"].mean() != 0).all() and (sample["late_responses"].mean() != 1).all()
+            if good_early_sample and good_late_sample:
+                good_sample=True
         sample["sample_size"] = sample_size
         sample["latent_dimension"] = self.latent_dimension
         sample["item_dimension"] = self.item_dimension
@@ -211,5 +217,8 @@ class response_simulation():
             raise Exception("All-incorrect item identified")
         return(sample)
 
-    def get_item_parameters(self):
-        return({"real"})
+    def get_item_parameters(self, early=True):
+        if early: 
+            return(self.early_model.item_parameters)
+        else:
+            return(self.late_model.item_parameters)

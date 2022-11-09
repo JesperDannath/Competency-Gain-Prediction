@@ -26,7 +26,7 @@ class m_step_ga_mml(m_step):
 
     # TODO: Python package für ga ausprobieren: cmaes (https://github.com/CMA-ES/pycma)
     def genetic_algorithm(self, fitness_function, x0: np.array, constraint_function=lambda x: True,
-                          population_size: int = 40, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=0.1, max_iter=75):
+                          population_size: int = 40, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=0.1, max_iter=40):
         # Helping functions
         def mutate(individual):
             valid_individual = False
@@ -68,8 +68,11 @@ class m_step_ga_mml(m_step):
             # (Len-rank)/gaussian_sum
             # population = random.choices(population=population_base, weights=list(
             #     range(len(population_base)+1, 1, -1)), k=population_size)
-            population = random.choices(population=population_base, weights=np.exp(
-                np.arange(len(population_base), 0, -1)), k=population_size)
+            population_weights = np.exp(np.arange(len(population_base), 0, -1))
+            if (np.isinf(population_weights).any()) or (np.isnan(population_weights).any()):
+                converged = True
+                continue
+            population = random.choices(population=population_base, weights=population_weights, k=population_size)
             population = [individual[1] for individual in population]
             # Breeding
             for i in range(0, len(population)):
@@ -244,7 +247,7 @@ class m_step_ga_mml(m_step):
 
                 def trunc(values, decs=0):
                     return np.trunc(values*10**decs)/(10**decs)
-                print(new_sigma)
+                #print(new_sigma)
                 new_sigma = trunc(new_sigma, 4)
             elif person_method == "newton_raphson":
                 # x0 = scipy.linalg.sqrtm(
@@ -265,7 +268,7 @@ class m_step_ga_mml(m_step):
 
                 def trunc(values, decs=0):
                     return np.trunc(values*10**decs)/(10**decs)
-                print(new_sigma)
+                #print(new_sigma)
                 new_sigma = trunc(new_sigma, 4)
         else:
             new_sigma = self.model.person_parameters["covariance"]
@@ -313,6 +316,12 @@ class m_step_ga_mml(m_step):
             new_delta_item = new_item_parameters[len(x0)-1]
             new_A[item] = new_a_item
             new_delta[item] = new_delta_item
+        if np.isnan(new_delta).any():
+            print("Invalid for Delta encountered, setting last step Delta")
+            new_delta[np.isnan(new_delta)] = self.model.item_parameters["intercept_vector"][np.isnan(new_delta)] 
+        if np.isnan(new_A).any():
+            print("Invalid for A encountered, setting last step A")
+            new_A[np.isnan(new_A)] = self.model.item_parameters["discrimination_matrix"][np.isnan(new_A)] 
         return({"item_parameters": {"discrimination_matrix": new_A, "intercept_vector": new_delta},
                 "person_parameters": {"covariance": new_sigma}}, log_likelihood)
 

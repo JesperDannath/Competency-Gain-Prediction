@@ -112,9 +112,9 @@ class respondent_population():
                 sigma = make_sparse_spd_matrix(
                     dim=self.latent_dimension, alpha=0.1, norm_diag=True, smallest_coef=0.0, largest_coef=0.9)
                 sigma = np.abs(np.round(sigma, 5))
-                psi = 2*np.random.rand(D, D) -1
+                psi = 2*np.random.rand(D, D)-1
                 psi = np.round(psi, 5)
-                late_sigma = 0.5*make_sparse_spd_matrix(
+                late_sigma = 0.5*make_sparse_spd_matrix( # TODO: Make the scaling random, maybe higher correlation will lead to better estimateion?
                     dim=self.latent_dimension, alpha=0.1, norm_diag=False, smallest_coef=0.0, largest_coef=0.9) 
                 late_sigma = np.abs(np.round(late_sigma, 5))
                 correlation_matrix[0:D, 0:D] = sigma

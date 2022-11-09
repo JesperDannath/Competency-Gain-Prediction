@@ -105,7 +105,12 @@ class mirt_2pl_gain(mirt_2pl):
             sigma_psi[0:D, D:2*D] = latent_corr
             sigma_psi[D:2*D, 0:D] = latent_corr.transpose()
         person_parameter_update = {"covariance": sigma_psi, "mean": mu}
-        self.set_parameters({"person_parameters": person_parameter_update})
+        try:
+            self.set_parameters({"person_parameters": person_parameter_update})
+        except:
+            sigma_psi = np.identity(self.latent_dimension*2)
+            person_parameter_update = {"covariance": sigma_psi, "mean": mu}
+            self.set_parameters({"person_parameters": person_parameter_update})
 
     # TODO: Maybe reduce number of times the matrix calculations are done here
     def update_conditional_covariance(self):
@@ -472,7 +477,7 @@ class mirt_2pl_gain(mirt_2pl):
             inv_early_sigma = np.linalg.inv(early_sigma)
             psi = self.person_parameters["covariance"][0:D, D: 2*D]
             mu = self.person_parameters["mean"]
-            gain_matrix = np.expand_dims(mu[D:2*D], axis=1) + np.dot(np.dot(psi, inv_early_sigma),
+            gain_matrix = np.expand_dims(mu[D:2*D], axis=1) + np.dot(np.dot(psi.transpose(), inv_early_sigma),
                                                                      theta.to_numpy().transpose())
             gain_matrix = gain_matrix.transpose()
         return(gain_matrix)

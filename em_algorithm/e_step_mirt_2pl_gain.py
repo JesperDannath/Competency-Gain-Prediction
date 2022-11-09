@@ -59,8 +59,8 @@ class e_step_ga_mml_gain(e_step_ga_mml):
         p_change = ttest_ind(
             self.mc_variance_data, self.last_mc_variance_data, axis=0, equal_var=False).pvalue[0]
         # TODO: Try one-sided alternative (Sigma should increase). Better don't do test if likelihood decreases
-        if (iter > 1) & (p_change > 0.2) & (self.N < 3000):
-            self.N = int(self.N*1.1)
+        if (iter > 1) & (p_change > 0.1) & (self.N < 3000):
+            self.N = int(self.N*1.08)
 
         print("Current Monte Carlo Sample size: {0}".format(self.N))
         s_sample = self.model.sample_gain(
