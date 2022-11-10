@@ -477,7 +477,7 @@ class mirt_2pl_gain(mirt_2pl):
             inv_early_sigma = np.linalg.inv(early_sigma)
             psi = self.person_parameters["covariance"][0:D, D: 2*D]
             mu = self.person_parameters["mean"]
-            gain_matrix = np.expand_dims(mu[D:2*D], axis=1) + np.dot(np.dot(psi.transpose(), inv_early_sigma),
+            gain_matrix = np.expand_dims(mu[D:2*D], axis=1) + np.dot(np.dot(psi, inv_early_sigma),
                                                                      theta.to_numpy().transpose())
             gain_matrix = gain_matrix.transpose()
         return(gain_matrix)

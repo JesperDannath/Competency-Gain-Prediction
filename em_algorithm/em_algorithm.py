@@ -66,7 +66,7 @@ class em_algorithm():
             #    current_parameters = copy.deepcopy(last_step_parameters)
             #    marginal_loglikelihood = last_step_marginal_loglikelihood.copy()
             # TODO: make stopping criterion in percent-change
-            if (marginal_loglikelihood_quotient <= 1+stop_threshold) or (i >= max_iter):
+            if ((marginal_loglikelihood_quotient <= 1+stop_threshold) and (marginal_loglikelihood_quotient >= 1-stop_threshold)) or (i >= max_iter):
                 candidate_count += 1
                 if candidate_count >= 3:
                     converged = True

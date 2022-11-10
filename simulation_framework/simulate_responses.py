@@ -157,14 +157,14 @@ class response_simulation():
                 Q = self.late_model.item_parameters["q_matrix"]
         # 1. Sample relative difficulties
         delta = multivariate_normal(mean=np.zeros(
-            1)-0.7, cov=np.ones(1)).rvs(self.item_dimension)
+            1)-0.3, cov=np.ones(1)).rvs(self.item_dimension)
         # t-Verteilung oder Gleichverteilung mal ausprobieren
         A = np.zeros((self.item_dimension, self.latent_dimension))
         #delta = np.zeros(self.item_dimension)
         # 2. Get smallest relative difficulty per item
         for i in range(0, self.item_dimension):
             A[i] = np.exp(multivariate_normal(
-                mean=np.zeros(self.latent_dimension), cov=1*np.identity(self.latent_dimension)).rvs())
+                mean=np.zeros(self.latent_dimension)+0.5, cov=0.5*np.identity(self.latent_dimension)).rvs())
         item_parameters = {"discrimination_matrix": np.multiply(A, Q),
                            "intercept_vector": delta}
         if len(A[A <= 0]) > 0:
@@ -176,17 +176,21 @@ class response_simulation():
             self.late_model.item_parameters.update(item_parameters)
             return(self.late_model.item_parameters)
 
-    def scale_discriminations(self, sigma_psi):
+    #def scale_discriminations(self, sigma_psi):
+    #    self.late_model.set_parameters(
+    #        {"person_parameters": {"covariance": sigma_psi}})
+    #    # We have to change A, since it should be according to the
+    #    # size or the diagonal values of COV(\theta + s)
+    #    A = self.late_model.item_parameters["discrimination_matrix"]
+    #    convolution_sigma_diag = np.diag(np.diag(
+    #        self.late_model.get_cov("convolution")))
+    #    scaled_A = np.dot(A, np.linalg.inv(convolution_sigma_diag))
+    #    item_parameters = {"discrimination_matrix": scaled_A}
+    #    self.late_model.item_parameters.update(item_parameters)
+    
+    def set_sigma_psi(self, sigma_psi):
         self.late_model.set_parameters(
             {"person_parameters": {"covariance": sigma_psi}})
-        # We have to change A, since it should be according to the
-        # size or the diagonal values of COV(\theta + s)
-        A = self.late_model.item_parameters["discrimination_matrix"]
-        convolution_sigma_diag = np.diag(np.diag(
-            self.late_model.get_cov("convolution")))
-        scaled_A = np.dot(A, np.linalg.inv(convolution_sigma_diag))
-        item_parameters = {"discrimination_matrix": scaled_A}
-        self.late_model.item_parameters.update(item_parameters)
 
     def sample(self, sample_size) -> pd.DataFrame:
         sample = {}

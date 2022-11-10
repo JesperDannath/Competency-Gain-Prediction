@@ -437,7 +437,7 @@ def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, early_person_m
                                                                                                    stop_threshold=stop_threshold,
                                                                                                    person_method=early_person_method, sigma_constraint=sigma_constraint)
     early_theta_hat = early_model.predict_competency(
-        sample["early_responses"], strict_variance=True)
+        sample["early_responses"], strict_variance=False)
     parameter_dict.update(
         {"estimated_early_parameters": early_estimated_parameters})
     early_estimated_parameters["person_parameters"].update(
@@ -468,7 +468,7 @@ def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, early_person_m
     late_model.set_parameters(scaled_parameters)
 
     late_theta_hat = late_model.predict_competency(
-        sample["late_responses"], strict_variance=True) + 1
+        sample["late_responses"], strict_variance=False) + 1
     # Double late theta because var(late_theta) = var(early_theta + gain) = var(early_theta) + var(gain) - 2*cov(early_theta, gain)
     s_hat = late_theta_hat - early_theta_hat
     late_estimated_parameters["item_parameters"]["discrimination_matrix"] = conv_A_scaled
