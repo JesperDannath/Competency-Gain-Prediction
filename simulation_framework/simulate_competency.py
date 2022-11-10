@@ -114,8 +114,8 @@ class respondent_population():
                 sigma = np.abs(np.round(sigma, 5))
                 psi = 2*np.random.rand(D, D)-1
                 psi = np.round(psi, 5)
-                late_sigma = 0.7*make_sparse_spd_matrix( # TODO: Make the scaling random, maybe higher correlation will lead to better estimateion?
-                    dim=self.latent_dimension, alpha=0.1, norm_diag=False, smallest_coef=0.0, largest_coef=0.9) 
+                late_sigma = 0.7*make_sparse_spd_matrix(  # TODO: Make the scaling random, maybe higher correlation will lead to better estimateion?
+                    dim=self.latent_dimension, alpha=0.1, norm_diag=False, smallest_coef=0.0, largest_coef=0.9)
                 late_sigma = np.abs(np.round(late_sigma, 5))
                 correlation_matrix[0:D, 0:D] = sigma
                 correlation_matrix[D:2*D, D:2*D] = late_sigma
@@ -126,8 +126,8 @@ class respondent_population():
                 except Exception:
                     return(self.initialize_random_person_parameters(
                         early_Q=early_Q, late_Q=late_Q, q_share=q_share, constraint_type=constraint_type))
-            self.latent_distribution = multivariate_normal(
-                mean=mean, cov=np.round(correlation_matrix, 4))
+        self.latent_distribution = multivariate_normal(
+            mean=mean, cov=np.round(correlation_matrix, 4))
         return({"covariance": np.round(correlation_matrix, 4)})
 
     def sample(self, sample_size: int) -> pd.DataFrame:

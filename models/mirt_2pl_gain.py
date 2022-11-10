@@ -67,6 +67,8 @@ class mirt_2pl_gain(mirt_2pl):
             psi[np.diag_indices_from(psi)] = psi_diag
             self.person_parameters["covariance"][0:D, D:2*D] = psi
             self.person_parameters["covariance"][D:2*D, 0:D] = psi.transpose()
+            self.person_parameters["convolution_variance"] = np.diag(
+                self.get_cov("convolution"))
         else:
             self.person_parameters["convolution_variance"] = convolution_variance
             late_variance = convolution_variance - 1
@@ -134,7 +136,7 @@ class mirt_2pl_gain(mirt_2pl):
                              "late_conditional_covariance": late_conditional_cov}
         self.set_parameters({"person_parameters": person_parameters})
 
-    def check_sigma(self, sigma: np.array = np.empty(0), enforce_early_cov=False, callback=True):
+    def check_sigma(self, sigma: np.array = np.empty(0), enforce_early_cov=False, callback=True, enforce_convolution_var=True):
         D = self.latent_dimension
         if sigma.size == 0:
             sigma = self.person_parameters["covariance"]
@@ -151,7 +153,7 @@ class mirt_2pl_gain(mirt_2pl):
             if callback:
                 print(sigma)
             raise Exception("New Covariance not positive semidefinite")
-        if self.person_parameters["convolution_variance"].size != 0:
+        if (self.person_parameters["convolution_variance"].size != 0) and enforce_convolution_var:
             convolution_matrix = np.concatenate(
                 (np.identity(D), np.identity(D)), axis=1)
             convolution_covariance = np.dot(convolution_matrix, sigma)
@@ -159,7 +161,7 @@ class mirt_2pl_gain(mirt_2pl):
                 convolution_covariance, convolution_matrix.transpose())
             variance_diff = np.abs(
                 np.diag(convolution_covariance)-self.person_parameters["convolution_variance"])
-            if (variance_diff > 0.01).any():
+            if (variance_diff > 0.1).any():
                 raise Exception("Convolution variance has wrong values")
         return(True)
 
@@ -230,7 +232,8 @@ class mirt_2pl_gain(mirt_2pl):
             AA = np.concatenate((A, A), axis=1)
 
             def func(Lambda):
-                Lambda = Lambda.reshape((2*D, 2*D))
+                #Lambda = Lambda.reshape((2*D, 2*D))
+                Lambda = np.diag(Lambda)
                 new_sigma = np.dot(
                     np.dot(Lambda, sigma_psi), Lambda.transpose())
                 early_diff = np.sum(
@@ -245,28 +248,43 @@ class mirt_2pl_gain(mirt_2pl):
                 convolution_variance_diff = np.sum(
                     np.square(convolution_variance - np.diag(convolution_sigma)))
                 # Regularise by Q-Matrix
-                QQ = np.concatenate(
-                    (self.item_parameters["q_matrix"], self.item_parameters["q_matrix"]), axis=1)
-                inv_Lambda = np.linalg.inv(Lambda)
-                rot_QQ = np.dot(QQ, inv_Lambda)
-                q_violation_sum = np.sum(np.square(rot_QQ[np.where(QQ == 0)]))
+                # QQ = np.concatenate(
+                #     (self.item_parameters["q_matrix"], self.item_parameters["q_matrix"]), axis=1)
+                # inv_Lambda = np.linalg.inv(Lambda)
+                # rot_QQ = np.dot(QQ, inv_Lambda)
+                # q_violation_sum = np.sum(np.square(rot_QQ[np.where(QQ == 0)]))
                 # Regularise by A Matrix
-                rot_AA = np.dot(AA, inv_Lambda)
-                rot_A1 = rot_AA[:, 0:D]
-                rot_A2 = rot_AA[:, D:2*D]
-                rot_A_diff = np.sum(
-                    np.square(rot_A1.flatten() - rot_A2.flatten()))
-                return(early_diff + convolution_variance_diff + q_violation_sum + rot_A_diff)
-            x0 = np.identity(2*D).flatten()
+                # rot_AA = np.dot(AA, inv_Lambda)
+                # rot_A1 = rot_AA[:, 0:D]
+                # rot_A2 = rot_AA[:, D:2*D]
+                # rot_A_diff = np.sum(
+                #     np.square(rot_A1.flatten() - rot_A2.flatten()))
+                # Regularise by conditional Distribution
+                psi_before = sigma_psi[0:D, D:2*D]
+                late_sigma_before = sigma_psi[D:2*D, D:2*D]
+                inv_late_sigma_before = np.linalg.inv(late_sigma_before)
+                conditional_mean_predictor_before = np.dot(
+                    psi_before, inv_late_sigma_before)
+                psi_rot = new_sigma[0:D, D:2*D]
+                late_sigma_rot = new_sigma[D:2*D, D:2*D]
+                inv_late_sigma_rot = np.linalg.inv(late_sigma_rot)
+                conditional_mean_predictor_rot = np.dot(
+                    psi_rot, inv_late_sigma_rot)
+                mean_pred_diff = np.sum(np.square(conditional_mean_predictor_rot.flatten(
+                ) - conditional_mean_predictor_before.flatten()))
+                return(early_diff + convolution_variance_diff + mean_pred_diff)
+            #x0 = np.identity(2*D).flatten()
+            x0 = np.ones(2*D)
             Lambda = minimize(
-                fun=func, x0=x0, method="BFGS").x.reshape((2*D, 2*D))
+                fun=func, x0=x0, method="BFGS", options={"maxiter": 100000}).x  # .reshape((2*D, 2*D))
+            Lambda = np.diag(Lambda)
             sigma_psi = np.dot(np.dot(Lambda, sigma_psi), Lambda.transpose())
             inv_Lambda = np.linalg.inv(Lambda)
-            rot_AA = np.dot(AA, inv_Lambda)
-            rot_A1 = rot_AA[:, 0:D]
-            rot_A2 = rot_AA[:, D:2*D]
-            rot_A = np.mean(np.stack((rot_A1, rot_A2), axis=2), axis=2)
-            self.item_parameters["discrimination_matrix"] = rot_A
+            # rot_AA = np.dot(AA, inv_Lambda)
+            # rot_A1 = rot_AA[:, 0:D]
+            # rot_A2 = rot_AA[:, D:2*D]
+            # rot_A = np.mean(np.stack((rot_A1, rot_A2), axis=2), axis=2)
+            # self.item_parameters["discrimination_matrix"] = rot_A
         return(sigma_psi)
 
     # def icc(self, theta, s, A=np.empty(0), delta=np.empty(0), cross=True):
@@ -468,7 +486,8 @@ class mirt_2pl_gain(mirt_2pl):
                                                                      i],
                                                                  answer_vector=response_pattern)
                 x0 = self.sample_gain()
-                res = minimize(nll, x0=x0, method='BFGS')
+                res = minimize(nll, x0=x0, method='BFGS',
+                               options={"maxiter": 100000})
                 gain_matrix[i] = res.x
         else:
             D = self.latent_dimension

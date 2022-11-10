@@ -60,7 +60,8 @@ class response_simulation():
             stair_frequencies = multinomial.rvs(pyramid_items, p=[
                 1/self.latent_dimension for i in range(0, self.latent_dimension)])
             if 0 in stair_frequencies:
-                self.initialize_random_q_structured_matrix(structure="pyramid", early=early, ensure_id=ensure_id)
+                self.initialize_random_q_structured_matrix(
+                    structure="pyramid", early=early, ensure_id=ensure_id)
                 return
             for i, frequency in enumerate(stair_frequencies):
                 for repeat in range(0, frequency):
@@ -76,7 +77,8 @@ class response_simulation():
             pattern_frequencies = multinomial.rvs(self.item_dimension, p=[
                 1/n_pattern for i in range(0, n_pattern)])
             if 0 in pattern_frequencies:
-                self.initialize_random_q_structured_matrix(structure="full", early=early, ensure_id=ensure_id)
+                self.initialize_random_q_structured_matrix(
+                    structure="full", early=early, ensure_id=ensure_id)
                 return
             patterns = list(itertools.product(
                 [0, 1], repeat=self.latent_dimension))
@@ -164,7 +166,7 @@ class response_simulation():
         # 2. Get smallest relative difficulty per item
         for i in range(0, self.item_dimension):
             A[i] = np.exp(multivariate_normal(
-                mean=np.zeros(self.latent_dimension)+0.5, cov=0.5*np.identity(self.latent_dimension)).rvs())
+                mean=np.zeros(self.latent_dimension), cov=0.5*np.identity(self.latent_dimension)).rvs())+1
         item_parameters = {"discrimination_matrix": np.multiply(A, Q),
                            "intercept_vector": delta}
         if len(A[A <= 0]) > 0:
@@ -176,7 +178,7 @@ class response_simulation():
             self.late_model.item_parameters.update(item_parameters)
             return(self.late_model.item_parameters)
 
-    #def scale_discriminations(self, sigma_psi):
+    # def scale_discriminations(self, sigma_psi):
     #    self.late_model.set_parameters(
     #        {"person_parameters": {"covariance": sigma_psi}})
     #    # We have to change A, since it should be according to the
@@ -187,7 +189,7 @@ class response_simulation():
     #    scaled_A = np.dot(A, np.linalg.inv(convolution_sigma_diag))
     #    item_parameters = {"discrimination_matrix": scaled_A}
     #    self.late_model.item_parameters.update(item_parameters)
-    
+
     def set_sigma_psi(self, sigma_psi):
         self.late_model.set_parameters(
             {"person_parameters": {"covariance": sigma_psi}})
@@ -199,18 +201,22 @@ class response_simulation():
         p_early = self.early_model.icc(theta=sample["latent_trait"])
         p_late = self.late_model.icc(
             theta=sample["latent_trait"], s=sample["latent_gain"], cross=False)
-        good_sample=False
+        good_sample = False
         while not good_sample:
-            sample["early_responses"] = pd.DataFrame(bernoulli(p=p_early).rvs())
+            sample["early_responses"] = pd.DataFrame(
+                bernoulli(p=p_early).rvs())
             sample["late_responses"] = pd.DataFrame(bernoulli(p=p_late).rvs())
-            good_early_sample = (sample["early_responses"].mean() != 0).all() and (sample["early_responses"].mean() != 1).all() 
-            good_late_sample = (sample["late_responses"].mean() != 0).all() and (sample["late_responses"].mean() != 1).all()
+            good_early_sample = (sample["early_responses"].mean() != 0).all() and (
+                sample["early_responses"].mean() != 1).all()
+            good_late_sample = (sample["late_responses"].mean() != 0).all() and (
+                sample["late_responses"].mean() != 1).all()
             if good_early_sample and good_late_sample:
-                good_sample=True
+                good_sample = True
         sample["sample_size"] = sample_size
         sample["latent_dimension"] = self.latent_dimension
         sample["item_dimension"] = self.item_dimension
-        sample["convolution_variance"] = np.diag(self.late_model.get_cov("convolution"))
+        sample["convolution_variance"] = np.diag(
+            self.late_model.get_cov("convolution"))
         if list(np.ones(sample_size)) in list(sample["early_responses"].transpose()):
             raise Exception("All-correct item identified")
         if list(np.zeros(sample_size)) in list(sample["early_responses"].transpose()):
@@ -222,7 +228,7 @@ class response_simulation():
         return(sample)
 
     def get_item_parameters(self, early=True):
-        if early: 
+        if early:
             return(self.early_model.item_parameters)
         else:
             return(self.late_model.item_parameters)

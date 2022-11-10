@@ -72,7 +72,8 @@ class m_step_ga_mml(m_step):
             if (np.isinf(population_weights).any()) or (np.isnan(population_weights).any()):
                 converged = True
                 continue
-            population = random.choices(population=population_base, weights=population_weights, k=population_size)
+            population = random.choices(
+                population=population_base, weights=population_weights, k=population_size)
             population = [individual[1] for individual in population]
             # Breeding
             for i in range(0, len(population)):
@@ -234,8 +235,10 @@ class m_step_ga_mml(m_step):
                 x0 = scipy.linalg.cholesky(
                     self.model.person_parameters["covariance"], lower=True)
                 x0 = x0[np.tril_indices_from(x0)]
+                # new_sigma_cholesky_vector = minimize(
+                #     lambda x: -1*q_0_cholesky(x), jac=lambda x: -1*q_0_gradient_cholesky(x), x0=x0, method='BFGS', options={"maxiter": 10000}).x
                 new_sigma_cholesky_vector = minimize(
-                    lambda x: -1*q_0_cholesky(x), jac=lambda x: -1*q_0_gradient_cholesky(x), x0=x0, method='BFGS').x
+                    lambda x: -1*q_0_cholesky(x), x0=x0, method='BFGS', options={"maxiter": 10000}).x
                 new_sigma_cholesky = np.identity(
                     self.model.person_parameters["covariance"].shape[0])
                 new_sigma_cholesky[np.tril_indices_from(
@@ -247,7 +250,7 @@ class m_step_ga_mml(m_step):
 
                 def trunc(values, decs=0):
                     return np.trunc(values*10**decs)/(10**decs)
-                #print(new_sigma)
+                # print(new_sigma)
                 new_sigma = trunc(new_sigma, 4)
             elif person_method == "newton_raphson":
                 # x0 = scipy.linalg.sqrtm(
@@ -268,7 +271,7 @@ class m_step_ga_mml(m_step):
 
                 def trunc(values, decs=0):
                     return np.trunc(values*10**decs)/(10**decs)
-                #print(new_sigma)
+                # print(new_sigma)
                 new_sigma = trunc(new_sigma, 4)
         else:
             new_sigma = self.model.person_parameters["covariance"]
@@ -277,7 +280,11 @@ class m_step_ga_mml(m_step):
             new_sigma[new_sigma < 0] = 0
         # Ensure that sigma is valid
         try:
-            self.model.check_sigma(new_sigma)
+            if person_method == "BFGS" and (self.model.type != "normal"):
+                self.model.check_sigma(
+                    new_sigma, enforce_convolution_var=False)
+            else:
+                self.model.check_sigma(new_sigma)
         except Exception:
             print("Invalid Covariance encountered, trying last step covariance")
             new_sigma = self.model.person_parameters["covariance"]
@@ -318,10 +325,12 @@ class m_step_ga_mml(m_step):
             new_delta[item] = new_delta_item
         if np.isnan(new_delta).any():
             print("Invalid for Delta encountered, setting last step Delta")
-            new_delta[np.isnan(new_delta)] = self.model.item_parameters["intercept_vector"][np.isnan(new_delta)] 
+            new_delta[np.isnan(
+                new_delta)] = self.model.item_parameters["intercept_vector"][np.isnan(new_delta)]
         if np.isnan(new_A).any():
             print("Invalid for A encountered, setting last step A")
-            new_A[np.isnan(new_A)] = self.model.item_parameters["discrimination_matrix"][np.isnan(new_A)] 
+            new_A[np.isnan(
+                new_A)] = self.model.item_parameters["discrimination_matrix"][np.isnan(new_A)]
         return({"item_parameters": {"discrimination_matrix": new_A, "intercept_vector": new_delta},
                 "person_parameters": {"covariance": new_sigma}}, log_likelihood)
 

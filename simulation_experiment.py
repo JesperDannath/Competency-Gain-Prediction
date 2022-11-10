@@ -319,31 +319,31 @@ def mirt_simulation_experiment(sample_size, item_dimension=20, latent_dimension=
     result_dict = {"sample": sample}
     if "late_em" in methods:
         print("Start late EM")
-        performance_dict_le = late_em_optimization(sample=sample, parameter_dict=copy.deepcopy(parameter_dict), stop_threshold=stop_threshold,
+        performance_dict_le = late_em_optimization(sample=copy.deepcopy(sample), parameter_dict=copy.deepcopy(parameter_dict), stop_threshold=stop_threshold,
                                                    early_person_method=early_person_method, late_person_method=late_person_method,
                                                    sigma_constraint=sigma_constraint, real_theta=False)
         result_dict["late_em"] = performance_dict_le
     if "initial" in methods:
         print("Start initial baseline")
         performance_dict_init = initial_params_baseline(
-            sample=sample, parameter_dict=copy.deepcopy(parameter_dict), sigma_constraint=sigma_constraint)
+            sample=copy.deepcopy(sample), parameter_dict=copy.deepcopy(parameter_dict), sigma_constraint=sigma_constraint)
         result_dict["initial"] = performance_dict_init
     if "difference" in methods:
         print("Start difference baseline")
         performance_dict_diff = two_mirt_2pl_baseline(
-            sample=sample, parameter_dict=copy.deepcopy(parameter_dict), early_person_method=early_person_method,
+            sample=copy.deepcopy(sample), parameter_dict=copy.deepcopy(parameter_dict), early_person_method=early_person_method,
             sigma_constraint=sigma_constraint, stop_threshold=stop_threshold)
         result_dict["difference"] = performance_dict_diff
     if "real_early" in methods:
         print("Start real early baseline")
         performance_dict_re = real_early_params_baseline(
-            sample=sample, parameter_dict=copy.deepcopy(parameter_dict), late_person_method=late_person_method,
+            sample=copy.deepcopy(sample), parameter_dict=copy.deepcopy(parameter_dict), late_person_method=late_person_method,
             sigma_constraint=sigma_constraint, stop_threshold=stop_threshold)
         result_dict["real_early"] = performance_dict_re
     if "pure_competency" in methods:
         print("Start pure competency baseline")
         performance_dict_pc = pure_competency_baseline(
-            sample=sample, parameter_dict=copy.deepcopy(parameter_dict), late_person_method=late_person_method,
+            sample=copy.deepcopy(sample), parameter_dict=copy.deepcopy(parameter_dict), late_person_method=late_person_method,
             early_person_method=early_person_method, sigma_constraint=sigma_constraint, stop_threshold=stop_threshold)
         result_dict["pure_competency"] = performance_dict_pc
     return(result_dict)
