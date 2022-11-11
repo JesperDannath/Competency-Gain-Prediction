@@ -235,10 +235,12 @@ class m_step_ga_mml(m_step):
                 x0 = scipy.linalg.cholesky(
                     self.model.person_parameters["covariance"], lower=True)
                 x0 = x0[np.tril_indices_from(x0)]
-                # new_sigma_cholesky_vector = minimize(
-                #     lambda x: -1*q_0_cholesky(x), jac=lambda x: -1*q_0_gradient_cholesky(x), x0=x0, method='BFGS', options={"maxiter": 10000}).x
-                new_sigma_cholesky_vector = minimize(
-                    lambda x: -1*q_0_cholesky(x), x0=x0, method='BFGS', options={"maxiter": 10000}).x
+                if self.model.type == "normal":
+                    new_sigma_cholesky_vector = minimize(
+                         lambda x: -1*q_0_cholesky(x), jac=lambda x: -1*q_0_gradient_cholesky(x), x0=x0, method='BFGS', options={"maxiter": 10000}).x
+                else:
+                    new_sigma_cholesky_vector = minimize(
+                        lambda x: -1*q_0_cholesky(x), x0=x0, method='BFGS', options={"maxiter": 10000}).x
                 new_sigma_cholesky = np.identity(
                     self.model.person_parameters["covariance"].shape[0])
                 new_sigma_cholesky[np.tril_indices_from(
@@ -252,6 +254,7 @@ class m_step_ga_mml(m_step):
                     return np.trunc(values*10**decs)/(10**decs)
                 # print(new_sigma)
                 new_sigma = trunc(new_sigma, 4)
+                print(new_sigma)
             elif person_method == "newton_raphson":
                 # x0 = scipy.linalg.sqrtm(
                 #    self.model.person_parameters["covariance"]).flatten()
@@ -273,6 +276,7 @@ class m_step_ga_mml(m_step):
                     return np.trunc(values*10**decs)/(10**decs)
                 # print(new_sigma)
                 new_sigma = trunc(new_sigma, 4)
+                print(new_sigma)
         else:
             new_sigma = self.model.person_parameters["covariance"]
         # Ensure that new_sigma is positive

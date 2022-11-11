@@ -133,19 +133,35 @@ class e_step_ga_mml_gain(e_step_ga_mml):
     #     denominator = normalising_constant_array
     #     return(np.sum(np.divide(numerator, denominator), axis=1))
 
-    def q_0(self, s, theta, response_matrix_probability, early_conditional_density, normalising_constant_array, response_data):
+    def q_0(self, s, theta, response_matrix_probability, early_conditional_density, normalising_constant_array, response_data, gamma=100):
         # numerator = np.array(self.model.response_matrix_probability(s=s,
-        #                                                             theta=theta.to_numpy(), response_matrix=response_data.to_numpy()))
+        #         
+        # theta=theta.to_numpy(), response_matrix=response_data.to_numpy()))
+        D = self.model.latent_dimension
         numerator = np.array(response_matrix_probability)
         numerator = np.multiply(numerator, early_conditional_density)
         denominator = normalising_constant_array
         quotient = np.divide(numerator, denominator)
+        convolution_variance = self.model.person_parameters["convolution_variance"]
+        Lambda = np.concatenate((np.identity(D), np.identity(D)), axis=1)
+        early_sigma = self.model.person_parameters["early_sigma"]
 
-        def func(sigma_psi, return_sample=False):
+        def func(sigma_psi, return_sample=False, regularise=True):
             factor = np.log(self.model.latent_density(
                 theta=theta, s=s, sigma=sigma_psi, type="full_cross", save=True))
             product = np.multiply(factor, quotient)
             sum = np.sum(product, axis=1)
+            if regularise:
+                early_diff = np.sum(
+                    np.square(sigma_psi[0:D, 0:D].flatten() - early_sigma.flatten()))
+                convolution_cov = np.dot(np.dot(Lambda, sigma_psi), Lambda.transpose())
+                convolution_diag = np.diag(convolution_cov)
+                convolution_diff = np.sum(np.square(convolution_diag-convolution_variance))
+                late_sigma_l2 = np.sum(np.square(np.diag(sigma_psi[D:2*D, D:2*D])))
+                late_sigma_diff = np.sum(np.square(np.diag(sigma_psi[D:2*D, D:2*D]) - (convolution_variance-1)))
+                psi_diag = np.diag(sigma_psi[0:D, D:2*D])
+                psi_diag_l2 = np.sum(np.square(psi_diag))
+                sum = sum - gamma*(convolution_diff+early_diff+late_sigma_l2-psi_diag_l2)
             if return_sample:
                 return(np.mean(sum), sum)
             return(np.mean(sum))

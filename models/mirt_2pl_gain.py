@@ -13,6 +13,7 @@ class mirt_2pl_gain(mirt_2pl):
                  delta=np.empty(0), early_sigma=np.empty(0), late_sigma=np.empty(0), latent_corr=np.empty(0)):
         super().__init__(item_dimension, latent_dimension=latent_dimension, A=A, Q=Q)
         self.person_parameters["early_sigma"] = early_sigma
+        self.person_parameters["mean"] = np.concatenate((np.zeros(latent_dimension), mu), axis=0)
         self.type = "gain"
         self.person_parameters["convolution_variance"] = np.empty(0)
         self.initialize_gain_parameters(early_sigma, late_sigma, latent_corr)
@@ -95,8 +96,9 @@ class mirt_2pl_gain(mirt_2pl):
 
     def initialize_gain_parameters(self, early_sigma=np.empty(0), late_sigma=np.empty(0), latent_corr=np.empty(0)):
         D = self.latent_dimension
-        mu = np.ones(2*D)
-        mu[0:D] = 0
+        #mu = np.ones(2*D)
+        #mu[0:D] = 0
+        mu = self.person_parameters["mean"]
         sigma_psi = np.identity(self.latent_dimension*2)
         sigma_psi[sigma_psi != 1] = 0.5
         if early_sigma.size > 0:
@@ -106,7 +108,7 @@ class mirt_2pl_gain(mirt_2pl):
         if latent_corr.size > 0:
             sigma_psi[0:D, D:2*D] = latent_corr
             sigma_psi[D:2*D, 0:D] = latent_corr.transpose()
-        person_parameter_update = {"covariance": sigma_psi, "mean": mu}
+        person_parameter_update = {"covariance": sigma_psi}
         try:
             self.set_parameters({"person_parameters": person_parameter_update})
         except:
@@ -136,7 +138,7 @@ class mirt_2pl_gain(mirt_2pl):
                              "late_conditional_covariance": late_conditional_cov}
         self.set_parameters({"person_parameters": person_parameters})
 
-    def check_sigma(self, sigma: np.array = np.empty(0), enforce_early_cov=False, callback=True, enforce_convolution_var=True):
+    def check_sigma(self, sigma: np.array = np.empty(0), enforce_early_cov=False, callback=True, enforce_convolution_var=False):
         D = self.latent_dimension
         if sigma.size == 0:
             sigma = self.person_parameters["covariance"]
@@ -218,7 +220,7 @@ class mirt_2pl_gain(mirt_2pl):
             raise Exception("Corr type for sigma not known")
         return(sigma_psi)
 
-    def fix_sigma(self, sigma_psi, sigma_constraint="early_constraint", convolution_constraint=True):
+    def fix_sigma(self, sigma_psi, sigma_constraint="early_constraint", convolution_constraint=False):
         D = self.latent_dimension
         J = self.item_dimension
         # if sigma_constraint != "esigma_spsi":
@@ -496,7 +498,7 @@ class mirt_2pl_gain(mirt_2pl):
             inv_early_sigma = np.linalg.inv(early_sigma)
             psi = self.person_parameters["covariance"][0:D, D: 2*D]
             mu = self.person_parameters["mean"]
-            gain_matrix = np.expand_dims(mu[D:2*D], axis=1) + np.dot(np.dot(psi, inv_early_sigma),
+            gain_matrix = np.expand_dims(mu[D:2*D], axis=1) + np.dot(np.dot(psi.transpose(), inv_early_sigma),
                                                                      theta.to_numpy().transpose())
             gain_matrix = gain_matrix.transpose()
         return(gain_matrix)
