@@ -47,7 +47,7 @@ def repeat_mirt_experiment(experiment, repetitions, sample_sizes=[], item_dims=[
                 key = datetime.datetime.now()
                 try:
                     multiple_result_dict[key] = experiment(sample_size=sample_size,
-                                                           item_dimension=item_dimension, 
+                                                           item_dimension=item_dimension,
                                                            latent_dimension=latent_dimension)
                 except Exception as e:
                     print("Exception occured")
@@ -68,14 +68,16 @@ def repeat_mirt_experiment(experiment, repetitions, sample_sizes=[], item_dims=[
 
 if __name__ == "__main__":
     q_type = username = input("Enter Q_type (full, pyramid, seperated):")
-    experiment = lambda sample_size, item_dimension, latent_dimension: mirt_simulation_experiment(
-                                             sample_size=sample_size, item_dimension=item_dimension, latent_dimension=latent_dimension, 
-                                             q_type=q_type, stop_threshold=0.005, 
-                                             early_person_method="BFGS",
-                                             late_person_method="BFGS",
-                                            sigma_constraint="early_constraint",
-                                            methods=["real_early", "pure_competency", "initial", "late_em", "difference", "real_parameters"],
-                                            gain_mean=1.5)
-    result_df, errors= repeat_mirt_experiment(experiment, repetitions=10, 
-                                              sample_sizes=[30, 100, 200], latent_dims=[2, 3], 
-                                              item_dims=[10, 20], file="results/{0}_q.csv".format(q_type))
+
+    def experiment(sample_size, item_dimension, latent_dimension): return mirt_simulation_experiment(
+        sample_size=sample_size, item_dimension=item_dimension, latent_dimension=latent_dimension,
+        q_type=q_type, stop_threshold=0.01,
+        early_person_method="BFGS",
+        late_person_method="BFGS",
+        sigma_constraint="early_constraint",
+        methods=["real_early", "pure_competency", "initial",
+                 "late_em", "difference", "real_parameters"],
+        gain_mean=1.5)
+    result_df, errors = repeat_mirt_experiment(experiment, repetitions=10,
+                                               sample_sizes=[30, 100, 200], latent_dims=[2, 3],
+                                               item_dims=[10, 20], file="results/{0}_q.csv".format(q_type))
