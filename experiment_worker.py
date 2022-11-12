@@ -74,7 +74,8 @@ if __name__ == "__main__":
                                              early_person_method="BFGS",
                                              late_person_method="BFGS",
                                             sigma_constraint="early_constraint",
-                                            methods=["real_early", "initial", "late_em", "difference"], gain_mean=1.5)
+                                            methods=["real_early", "pure_competency", "initial", "late_em", "difference", "real_parameters"],
+                                            gain_mean=1.5)
     result_df, errors= repeat_mirt_experiment(experiment, repetitions=10, 
                                               sample_sizes=[30, 100, 200], latent_dims=[2, 3], 
                                               item_dims=[10, 20], file="results/{0}_q.csv".format(q_type))
