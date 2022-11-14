@@ -133,7 +133,7 @@ class e_step_ga_mml_gain(e_step_ga_mml):
     #     denominator = normalising_constant_array
     #     return(np.sum(np.divide(numerator, denominator), axis=1))
 
-    def q_0(self, s, theta, response_matrix_probability, early_conditional_density, normalising_constant_array, response_data, gamma=150):
+    def q_0(self, s, theta, response_matrix_probability, early_conditional_density, normalising_constant_array, response_data, gamma=1.5):
         # numerator = np.array(self.model.response_matrix_probability(s=s,
         #
         # theta=theta.to_numpy(), response_matrix=response_data.to_numpy()))
@@ -145,6 +145,7 @@ class e_step_ga_mml_gain(e_step_ga_mml):
         convolution_variance = self.model.person_parameters["convolution_variance"]
         Lambda = np.concatenate((np.identity(D), np.identity(D)), axis=1)
         early_sigma = self.model.person_parameters["early_sigma"]
+        N = response_data.shape[0]
 
         def func(sigma_psi, return_sample=False, regularise=True):
             factor = np.log(self.model.latent_density(
@@ -166,10 +167,10 @@ class e_step_ga_mml_gain(e_step_ga_mml):
                 psi_diag = np.diag(sigma_psi[0:D, D:2*D])
                 psi_diag_l2 = np.sum(np.square(psi_diag))
                 psi_diag_sum = np.sum(psi_diag)
-                sum = sum - gamma*(4*convolution_diff +
-                                   early_diff+late_sigma_l2-psi_diag_sum)
-                # sum = sum - gamma*np.log((4*convolution_diff +
-                #                          early_diff+late_sigma_l2-psi_diag_sum)+0.000000000001)
+                # sum = sum - gamma*(4*convolution_diff +
+                #                    early_diff+late_sigma_l2-psi_diag_sum)
+                sum = sum - N*gamma*(4*convolution_diff +
+                                     early_diff+late_sigma_l2-psi_diag_sum)
             if return_sample:
                 return(np.mean(sum), sum)
             return(np.mean(sum))
