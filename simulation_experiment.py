@@ -79,7 +79,6 @@ def experiment_performance(estimated_parameter_dict={}, real_parameter_dict={}, 
             sigma_true = real_parameter_dict["person_parameters"]["covariance"]
 
             print("Absolute diff in sigma:")
-            # TODO: Evtl. die Hauptdiagonale ausschließen!
             print(np.abs(sigma_true-sigma_pred))
             res_dict["rmse_sigma"] = rmse(sigma_true, sigma_pred)
         else:

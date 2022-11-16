@@ -165,8 +165,9 @@ class response_simulation():
         #delta = np.zeros(self.item_dimension)
         # 2. Get smallest relative difficulty per item
         for i in range(0, self.item_dimension):
-            A[i] = np.exp(multivariate_normal(
-                mean=np.zeros(self.latent_dimension), cov=0.5*np.identity(self.latent_dimension)).rvs())+1
+            #A[i] = np.exp(multivariate_normal(
+            #    mean=np.zeros(self.latent_dimension), cov=0.5*np.identity(self.latent_dimension)).rvs())+1
+            A[i] = np.random.exponential(scale=0.5*np.ones(self.latent_dimension))+1
         item_parameters = {"discrimination_matrix": np.multiply(A, Q),
                            "intercept_vector": delta}
         if len(A[A <= 0]) > 0:
