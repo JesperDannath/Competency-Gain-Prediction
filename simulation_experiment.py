@@ -580,8 +580,8 @@ def real_parameters_baseline(sample, parameter_dict, late_person_method, early_p
     late_run = {"runtime": np.nan, "number_steps": np.nan}
     run_dict = {"early": early_run, "late": late_run}
     early_model = mirt_2pl(
-        item_dimension=parameter_dict["item_dimension"], latent_dimension=parameter_dict["item_dimension"])
-    early_model.set_parameters({"item_parameters": estimated_early_parameters["item_paremeters"],
+        item_dimension=parameter_dict["item_dimension"], latent_dimension=parameter_dict["latent_dimension"])
+    early_model.set_parameters({"item_parameters": estimated_early_parameters["item_parameters"],
                                 "person_parameters": estimated_early_parameters["person_parameters"]})
     performance_dict = create_performance_dict(
         parameter_dict=parameter_dict, run_dict=run_dict, sample=sample, early_model=early_model, late_model=late_model)
