@@ -507,10 +507,7 @@ def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, early_person_m
         theta=pd.DataFrame(early_theta_hat))
     late_estimated_parameters["person_parameters"].update(
         {"s_estimated": pd.DataFrame(s_hat), "s_pred_train": pd.DataFrame(s_pred_train)})
-    # except Exception:
-    #    late_estimated_parameters["person_parameters"]["covariance"] = pd.DataFrame(np.concatenate(
-    #        (early_theta_hat, s_hat), axis=1)).corr().to_numpy()
-    #    actual_late_model.set_parameters(late_estimated_parameters)
+
     parameter_dict.update(
         {"estimated_late_parameters": late_estimated_parameters})
     run_dict = {"early": early_run, "late": late_run}

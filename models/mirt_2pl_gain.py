@@ -13,63 +13,98 @@ class mirt_2pl_gain(mirt_2pl):
                  delta=np.empty(0), early_sigma=np.empty(0), late_sigma=np.empty(0), latent_corr=np.empty(0)):
         super().__init__(item_dimension, latent_dimension=latent_dimension, A=A, Q=Q)
         self.person_parameters["early_sigma"] = early_sigma
-        self.person_parameters["mean"] = np.concatenate((np.zeros(latent_dimension), mu), axis=0)
+        self.person_parameters["mean"] = np.concatenate(
+            (np.zeros(latent_dimension), mu), axis=0)
         self.type = "gain"
         self.person_parameters["convolution_variance"] = np.empty(0)
         self.initialize_gain_parameters(early_sigma, late_sigma, latent_corr)
         self.update_conditional_covariance()
 
     def initialize_from_responses(self, late_response_data: pd.DataFrame, early_response_data: pd.DataFrame,
-                                  convolution_variance=np.empty(0), sigma=True, logit=True):
+                                  convolution_variance=np.empty(0), sigma=True):
         super().initialize_from_responses(late_response_data, sigma)
         D = self.latent_dimension
+        # if convolution_variance.size == 0:
+        #     p_early = np.mean(early_response_data, axis=1)
+        #     p_late = np.mean(late_response_data, axis=1)
+        #     p_diff = np.subtract(p_late, p_early)
+        #     if not logit:
+        #         # Var(p_late) = Var(p_diff) + Var(p_early) + 2*Cov(p_diff, p_early)
+        #         var_p_early = np.var(p_early)
+        #         var_p_late = np.var(p_late)
+        #         var_p_diff = np.var(p_diff)
+        #         cov_early_diff = pd.DataFrame(
+        #             np.stack((p_diff, p_early), axis=1)).cov().to_numpy()[0, 1]
+        #         early_share = var_p_early/var_p_late
+        #         late_share = (var_p_diff)/var_p_late
+        #         cov_share = cov_early_diff/var_p_late
+        #     else:
+        #         p_early[p_early == 0] = np.min(p_early[p_early != 0])
+        #         p_early[p_early == 1] = np.max(p_early[p_early != 1])
+        #         p_late[p_late == 0] = np.min(p_late[p_late != 0])
+        #         p_late[p_late == 1] = np.max(p_late[p_late != 1])
+        #         logit_early = np.log(np.divide(p_early, 1 -
+        #                                        p_early))
+        #         logit_late = np.log(np.divide(p_late, 1 -
+        #                                       p_late))
+        #         logit_diff = logit_late - logit_early
+        #         var_logit_early = np.var(logit_early)
+        #         var_logit_late = np.var(logit_late)
+        #         var_logit_diff = np.var(logit_diff)
+        #         cov_early_diff = pd.DataFrame(
+        #             np.stack((logit_diff, logit_early), axis=1)).cov().to_numpy()[0, 1]
+        #         early_share = var_logit_early/var_logit_late
+        #         late_share = (var_logit_diff)/var_logit_late
+        #         cov_share = cov_early_diff/var_logit_late
+        #     # rho und p sollten vectoren sein!
+        #     late_sigma_var = np.ones(D)*late_share/early_share
+        #     late_sigma_sd_vector = np.sqrt(late_sigma_var)
+        #     sd_matrix = np.diag(late_sigma_sd_vector)
+        #     late_sigma = np.dot(
+        #         np.dot(sd_matrix, self.person_parameters["early_sigma"]), sd_matrix)
+        #     self.person_parameters["late_sigma"] = late_sigma
+        #     self.person_parameters["covariance"][D:2*D, D:2*D] = late_sigma
+        #     psi_diag = np.ones(D)*cov_share/early_share
+        #     psi = np.zeros((D, D))
+        #     psi[np.diag_indices_from(psi)] = psi_diag
+        #     self.person_parameters["covariance"][0:D, D:2*D] = psi
+        #     self.person_parameters["covariance"][D:2*D, 0:D] = psi.transpose()
+        #     self.person_parameters["convolution_variance"] = np.diag(
+        #         self.get_cov("convolution"))
         if convolution_variance.size == 0:
             p_early = np.mean(early_response_data, axis=1)
             p_late = np.mean(late_response_data, axis=1)
-            p_diff = np.subtract(p_late, p_early)
-            if not logit:
-                # Var(p_late) = Var(p_diff) + Var(p_early) + 2*Cov(p_diff, p_early)
-                var_p_early = np.var(p_early)
-                var_p_late = np.var(p_late)
-                var_p_diff = np.var(p_diff)
-                cov_early_diff = pd.DataFrame(
-                    np.stack((p_diff, p_early), axis=1)).cov().to_numpy()[0, 1]
-                early_share = var_p_early/var_p_late
-                late_share = (var_p_diff)/var_p_late
-                cov_share = cov_early_diff/var_p_late
-            else:
-                p_early[p_early == 0] = np.min(p_early[p_early != 0])
-                p_early[p_early == 1] = np.max(p_early[p_early != 1])
-                p_late[p_late == 0] = np.min(p_late[p_late != 0])
-                p_late[p_late == 1] = np.max(p_late[p_late != 1])
-                logit_early = np.log(np.divide(p_early, 1 -
-                                               p_early))
-                logit_late = np.log(np.divide(p_late, 1 -
-                                              p_late))
-                logit_diff = logit_late - logit_early
-                var_logit_early = np.var(logit_early)
-                var_logit_late = np.var(logit_late)
-                var_logit_diff = np.var(logit_diff)
-                cov_early_diff = pd.DataFrame(
-                    np.stack((logit_diff, logit_early), axis=1)).cov().to_numpy()[0, 1]
-                early_share = var_logit_early/var_logit_late
-                late_share = (var_logit_diff)/var_logit_late
-                cov_share = cov_early_diff/var_logit_late
+            # Correct numerical problems with the inverse logistic function
+            p_early[p_early == 0] = np.min(p_early[p_early != 0])
+            p_early[p_early == 1] = np.max(p_early[p_early != 1])
+            p_late[p_late == 0] = np.min(p_late[p_late != 0])
+            p_late[p_late == 1] = np.max(p_late[p_late != 1])
+            # get logits
+            logit_early = np.log(np.divide(p_early, 1 -
+                                           p_early))
+            logit_late = np.log(np.divide(p_late, 1 -
+                                          p_late))
+            var_logit_early = np.var(logit_early)
+            var_logit_late = np.var(logit_late)
+            # cov_early_diff = pd.DataFrame(
+            #     np.stack((logit_diff, logit_early), axis=1)).cov().to_numpy()[0, 1]
+            # early_share = var_logit_early/var_logit_late
+            # late_share = (var_logit_diff)/var_logit_late
+            # cov_share = cov_early_diff/var_logit_late
             # rho und p sollten vectoren sein!
-            late_sigma_var = np.ones(D)*late_share/early_share
+            late_sigma_var = np.ones(D)*var_logit_late/var_logit_early - 1
             late_sigma_sd_vector = np.sqrt(late_sigma_var)
             sd_matrix = np.diag(late_sigma_sd_vector)
             late_sigma = np.dot(
                 np.dot(sd_matrix, self.person_parameters["early_sigma"]), sd_matrix)
-            self.person_parameters["late_sigma"] = late_sigma
+            #self.person_parameters["late_sigma"] = late_sigma
             self.person_parameters["covariance"][D:2*D, D:2*D] = late_sigma
-            psi_diag = np.ones(D)*cov_share/early_share
+            psi_diag = np.zeros(D)
             psi = np.zeros((D, D))
             psi[np.diag_indices_from(psi)] = psi_diag
             self.person_parameters["covariance"][0:D, D:2*D] = psi
             self.person_parameters["covariance"][D:2*D, 0:D] = psi.transpose()
-            self.person_parameters["convolution_variance"] = np.diag(
-                self.get_cov("convolution"))
+            self.person_parameters["convolution_variance"] = late_sigma_var + 1
         else:
             self.person_parameters["convolution_variance"] = convolution_variance
             late_variance = convolution_variance - 1
