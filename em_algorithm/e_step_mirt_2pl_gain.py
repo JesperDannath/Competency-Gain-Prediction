@@ -16,8 +16,11 @@ if True:  # noqa: E402
 
 class e_step_ga_mml_gain(e_step_ga_mml):
 
-    def __init__(self, model: mirt_2pl_gain, incomplete_data: pd.DataFrame = pd.DataFrame()) -> None:
+    def __init__(self, model: mirt_2pl_gain, incomplete_data: pd.DataFrame = pd.DataFrame(),
+                        	                                gamma=1.5, convolution_factor=4) -> None:
         super().__init__(incomplete_data=incomplete_data, model=model)
+        self.gamma=gamma
+        self.convolution_factor = convolution_factor
 
     # TODO: Make this more efficient using multiple response patterns as input
     def conditional_ability_normalising_constant(self, response_data, theta, N=5000):
@@ -133,7 +136,8 @@ class e_step_ga_mml_gain(e_step_ga_mml):
     #     denominator = normalising_constant_array
     #     return(np.sum(np.divide(numerator, denominator), axis=1))
 
-    def q_0(self, s, theta, response_matrix_probability, early_conditional_density, normalising_constant_array, response_data, gamma=1.5):
+    def q_0(self, s, theta, response_matrix_probability, early_conditional_density, 
+            normalising_constant_array, response_data):
         # numerator = np.array(self.model.response_matrix_probability(s=s,
         #
         # theta=theta.to_numpy(), response_matrix=response_data.to_numpy()))
@@ -167,13 +171,12 @@ class e_step_ga_mml_gain(e_step_ga_mml):
                 psi_diag = np.diag(sigma_psi[0:D, D:2*D])
                 psi_diag_l2 = np.sum(np.square(psi_diag))
                 psi_diag_sum = np.sum(psi_diag)
-                # sum = sum - gamma*(4*convolution_diff +
-                #                    early_diff+late_sigma_l2-psi_diag_sum)
-                sum = sum - N*gamma*(4*convolution_diff +
+                regularisation = N*self.gamma*(self.convolution_factor*convolution_diff +
                                      early_diff+late_sigma_l2-psi_diag_sum)
+                #sum = sum - regularisation
             if return_sample:
-                return(np.mean(sum), sum)
-            return(np.mean(sum))
+                return(np.mean(sum)-regularisation, sum)
+            return(np.mean(sum)-regularisation)
         return(func)
 
     def q_0_gradient(self, s, theta, response_matrix_probability, early_conditional_density, normalising_constant_array, response_data):
