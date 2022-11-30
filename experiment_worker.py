@@ -78,6 +78,6 @@ if __name__ == "__main__":
         methods=["real_early", "pure_competency", "initial",
                  "late_em", "difference", "real_parameters"],
         gain_mean=1.5)
-    result_df, errors = repeat_mirt_experiment(experiment, repetitions=50,
+    result_df, errors = repeat_mirt_experiment(experiment, repetitions=100,
                                                sample_sizes=[30, 100, 200], latent_dims=[2, 3],
                                                item_dims=[10, 20, 30], file="results/{0}_q.csv".format(q_type))
