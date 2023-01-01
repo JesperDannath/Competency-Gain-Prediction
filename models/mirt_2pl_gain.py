@@ -1,4 +1,3 @@
-from tkinter import Variable
 from mirt_2pl import mirt_2pl
 import numpy as np
 import pandas as pd
