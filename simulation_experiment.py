@@ -298,7 +298,7 @@ def mirt_simulation_experiment(sample_size, item_dimension=20, latent_dimension=
                                q_type="seperated",
                                methods=["late_em", "initial", "difference",
                                         "real_early", "real_parameters"],
-                               stop_threshold=0.2,
+                               stop_threshold=2,
                                ensure_id=False, q_share=0.0, early_person_method="newton_raphson", late_person_method="ga",
                                sigma_constraint="early_constraint", real_theta=False,
                                gain_mean=1) -> dict:
