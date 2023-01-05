@@ -40,8 +40,8 @@ class e_step_ga_mml_gain(e_step_ga_mml):
             current_item_parameters (dict): Current item Parameters from last M-Step or initiation
             current_person_parameters (dict): Current person Parameters from last M-Step or initiation
         """
-        self.model.update_conditional_covariance(
-        )  # TODO: ist das hier der beste Ort? In set_parameters einschließen (Intransparent!)
+        # self.model.update_conditional_covariance(
+        # )  # TODO: ist das hier der beste Ort? In set_parameters einschließen (Intransparent!)
         normalising_constant_array = self.conditional_ability_normalising_constant(
             response_data.to_numpy(), theta.to_numpy())
 
@@ -57,8 +57,6 @@ class e_step_ga_mml_gain(e_step_ga_mml):
         self.last_mc_variance_data = self.mc_variance_data
         self.mc_variance_data = self.get_mc_variance_data(
             normalising_constant_array, response_data, theta=theta)
-        # p_change = self.compare_qmc_data(
-        #    last_qmc_data=self.last_qmc_variance_data, qmc_data=self.qmc_variance_data)
         p_change = ttest_ind(
             self.mc_variance_data, self.last_mc_variance_data, axis=0, equal_var=False).pvalue[0]
         # TODO: Try one-sided alternative (Sigma should increase). Better don't do test if likelihood decreases
@@ -77,14 +75,7 @@ class e_step_ga_mml_gain(e_step_ga_mml):
                                                                              theta=theta.to_numpy(), response_matrix=response_data.to_numpy())
         early_conditional_density = self.model.latent_density(
             type="early_conditional", s=s_sample, theta=theta)
-        # Calculate repeating inner functions
-        # r_0_s = self.r_0(
-        #     s=s_sample, response_matrix_probability=response_matrix_probability,
-        #     normalising_constant_array=normalising_constant_array,
-        #     response_data=response_data, theta=theta)
-        # r_item_list = [self.r_item(item=item, s=s_sample, response_matrix_probability=response_matrix_probability,
-        #                           normalising_constant_array=normalising_constant_array, response_data=response_data, theta=theta)
-        #               for item in range(0, J)]
+
         # Calculate final q-functions
         q_0 = self.q_0(s=s_sample,
                        theta=theta, response_matrix_probability=response_matrix_probability,
@@ -121,26 +112,9 @@ class e_step_ga_mml_gain(e_step_ga_mml):
         q_values = q_0(sigma, return_sample=True)[1].reshape((self.N, 1))
         return(q_values)
 
-    # def r_0(self, s, theta, normalising_constant_array, response_data):
-    #     numerator = self.model.response_matrix_probability(s=s,
-    #                                                        theta=theta.to_numpy(), response_matrix=response_data.to_numpy())
-    #     denominator = normalising_constant_array
-    #     return(np.sum(np.divide(numerator, denominator), axis=1))
-
-    # def r_item(self, item: int, s, theta: np.array, normalising_constant_array, response_data):
-    #     numerator = np.array(self.model.response_matrix_probability(s=s,
-    #                                                                 theta=theta.to_numpy(), response_matrix=response_data.to_numpy()))
-    #     # This coefficient is different to r_0
-    #     numerator = np.multiply(
-    #         numerator, response_data.iloc[:, item].to_numpy().transpose())
-    #     denominator = normalising_constant_array
-    #     return(np.sum(np.divide(numerator, denominator), axis=1))
 
     def q_0(self, s, theta, response_matrix_probability, early_conditional_density, 
             normalising_constant_array, response_data):
-        # numerator = np.array(self.model.response_matrix_probability(s=s,
-        #
-        # theta=theta.to_numpy(), response_matrix=response_data.to_numpy()))
         D = self.model.latent_dimension
         numerator = np.array(response_matrix_probability)
         numerator = np.multiply(numerator, early_conditional_density)
@@ -182,8 +156,6 @@ class e_step_ga_mml_gain(e_step_ga_mml):
     def q_0_gradient(self, s, theta, response_matrix_probability, early_conditional_density, normalising_constant_array, response_data):
         D = self.model.latent_dimension
         N = s.shape[0]
-        # numerator = np.array(self.model.response_matrix_probability(s=s,
-        #                                                             theta=theta.to_numpy(), response_matrix=response_data.to_numpy()))
         numerator = np.array(response_matrix_probability)
         numerator = np.multiply(numerator, early_conditional_density)
         denominator = normalising_constant_array
@@ -208,33 +180,9 @@ class e_step_ga_mml_gain(e_step_ga_mml):
             return(np.mean(integrant, axis=0))
         return(func)
 
-    # def q_item(self, item: int, s, theta, response_data, normalising_constant_array):
-    #     numerator = np.array(self.model.response_matrix_probability(s=s,
-    #                                                                 theta=theta.to_numpy(), response_matrix=response_data.to_numpy()))
-    #     numerator = np.multiply(numerator, self.model.latent_density(
-    #         type="early_conditional", s=s, theta=theta))
-    #     # This coefficient is different to r_0
-    #     numerator_item = np.multiply(
-    #         numerator, response_data.iloc[:, item].to_numpy().transpose())
-    #     denominator = normalising_constant_array
-    #     r_0 = np.divide(numerator, denominator)
-    #     r_item = np.divide(numerator_item, denominator)
 
-    #     def func(a_item: np.array, delta_item: np.array):
-    #         icc_values = self.model.icc(s=s, theta=theta, A=np.expand_dims(
-    #             a_item, axis=0), delta=np.array([delta_item]), save=False).transpose()[0]
-    #         inv_icc = 1 - icc_values
-    #         #icc_values[icc_values == 0] = np.float64(1.7976931348623157e-320)
-    #         #inv_icc[inv_icc == 0] = np.float64(1.7976931348623157e-320)
-    #         log_likelihood_item = np.multiply(np.log(icc_values), r_item) + np.multiply(
-    #             np.log(inv_icc), np.subtract(r_0, r_item))  # TODO: Make this save
-    #         log_likelihood_item = np.sum(log_likelihood_item, axis=1)
-    #         return(np.mean(log_likelihood_item))
-    #     return(func)
 
     def q_item(self, item: int, s, theta, response_data, response_matrix_probability, early_conditional_density, normalising_constant_array):
-        # numerator = np.array(self.model.response_matrix_probability(s=s,
-        #                                                             theta=theta.to_numpy(), response_matrix=response_data.to_numpy()))
         numerator = np.array(response_matrix_probability)
         numerator = np.multiply(numerator, early_conditional_density)
         # This coefficient is different to r_0

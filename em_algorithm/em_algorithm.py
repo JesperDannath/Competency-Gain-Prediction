@@ -58,22 +58,13 @@ class em_algorithm():
                 last_step_marginal_loglikelihood, marginal_loglikelihood)
             abs_parameter_diff, parameter_diff = self.give_parameter_diff(
                 current_parameters=current_parameters, last_step_parameters=last_step_parameters)
-            # if (parameter_diff <= 0.2) or (i >= max_iter-1):
-            # Enforce that the Likelihood increases
-            # if marginal_loglikelihood < last_step_marginal_loglikelihood:
-            #    print("Degenerated step!")
-            #    self.model.set_parameters(last_step_parameters)
-            #    current_parameters = copy.deepcopy(last_step_parameters)
-            #    marginal_loglikelihood = last_step_marginal_loglikelihood.copy()
-            # TODO: make stopping criterion in percent-change
+            #Check stopping criterion
             if ((marginal_loglikelihood_quotient <= 1+stop_threshold) and (marginal_loglikelihood_quotient >= 1-stop_threshold)) or (i >= max_iter):
                 candidate_count += 1
                 if candidate_count >= 3:
                     converged = True
             else:
                 candidate_count = 0
-            # if (np.sum(np.array(parameter_diff) >= np.array(stop_criterion)) == 0) and i >= 10:
-            #    converged = True
             i = i+1
             print("Step: {0}: current parameter_diff: {1}, current marginal loglikelihood: {2}".format(
                 i, abs_parameter_diff,  marginal_loglikelihood))

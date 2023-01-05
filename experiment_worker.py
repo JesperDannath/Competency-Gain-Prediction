@@ -2,19 +2,25 @@ import numpy as np
 from simulation_framework.item_response_simulation import item_response_simulation
 from simulation_framework.simulate_competency import respondent_population
 from simulation_framework.simulate_responses import response_simulation
-import models
-import em_algorithm
 import pandas as pd
-import time
-import scipy
 from simulation_experiment import mirt_simulation_experiment
 from analyse_experiment import get_result_df
-from analyse_experiment import print_result_from_df
 import datetime
 from itertools import product
 
 
-def repeat_mirt_experiment(experiment, repetitions, sample_sizes=[], item_dims=[], latent_dims=[], file=""):
+def repeat_mirt_experiment(experiment, repetitions: int, sample_sizes: list, item_dims: list, latent_dims: list, file: str=""):
+    """Repeat the specified Competency Gain simulation experiment for a specified number of times with varying input parameters.
+        Save the results in a .csv file. 
+
+    Args:
+        experiment (func): Simulation function, should return a result dictionary.
+        repetitions (int): Number of reps
+        sample_sizes (list, optional): Sample sizes to evaluate
+        item_dims (list): Item dimensions to evaluate
+        latent_dims (list): Latent dimensions to evaluate
+        file (str, optional): File path for .csv storage. Can append to existing files. 
+    """
     error_occured = False
     number_errors = 0
     errors = []
@@ -61,8 +67,6 @@ def repeat_mirt_experiment(experiment, repetitions, sample_sizes=[], item_dims=[
                 if file != "":
                     experiment_df.reset_index(drop=True)
                     experiment_df.to_csv(file, index=False)
-    # if error_occured:
-    #    pass #TODO Recursion for remaining variants
     return(experiment_df, errors)
 
 
@@ -78,6 +82,7 @@ if __name__ == "__main__":
         methods=["real_early", "pure_competency", "initial",
                  "late_em", "difference", "real_parameters"],
         gain_mean=1.5)
-    result_df, errors = repeat_mirt_experiment(experiment, repetitions=100,
+    #Settings that were used previously, may be changed for future simulation studies. 
+    result_df, errors = repeat_mirt_experiment(experiment, repetitions=101,
                                                sample_sizes=[30, 100, 200], latent_dims=[2, 3],
                                                item_dims=[10, 20, 30], file="results/{0}_q.csv".format(q_type))

@@ -26,6 +26,7 @@ class respondent_population():
             self.intervention = True
         else:
             self.latent_distribution = latent_distribution
+            self.intervention = intervention
         self.latent_dimension = latent_dimension
 
     def corr_from_Q(self, Q):
@@ -37,9 +38,15 @@ class respondent_population():
         return(q_corr)
 
     def initialize_random_person_parameters(self, early_Q=np.empty(0), late_Q=np.empty(0), late_mean_value=1, q_share=0.0, constraint_type="none"):
-        # TODO:  nochmal Q^tQ nehmen und dann den gewichteten Mittelwert bilden!
-        # evtl. auch nochmal die Recovery mit unabhängigen Fähigkeiten testen
-        # TODO: Um Werte kleiner zu machen Wurzel ziehen
+        """Initialize distribution parameters of the latent trait (covariance matrix). 
+
+        Args:
+            early_Q (np.array, optional): Early Q-Matrix. Defaults to np.empty(0).
+            late_Q (np.array, optional): Late Q-Matrix. Defaults to np.empty(0).
+            late_mean_value (int, optional): Mean competency gain. Defaults to 1.
+            q_share (float, optional): How much to orient the covarince at the Q-Matrices? 1 means Cov = Q^T*Q. Defaults to 0.0.
+            constraint_type (str, optional): Covariance constraint type. Defaults to "none".
+        """
         D = self.latent_dimension
         if not self.intervention:
             correlation_matrix = make_sparse_spd_matrix(
@@ -55,7 +62,6 @@ class respondent_population():
             self.latent_distribution = multivariate_normal(
                 mean=mean, cov=correlation_matrix)
         # Enforce correlation to be positive
-        # TODO: Must this be the case for correlation between early and late ability?
         correlation_matrix = np.round(np.abs(correlation_matrix), 4)
         # Calculate COV-Matrix implied by the Q-Matrix
         q_corr_early = self.corr_from_Q(early_Q)
@@ -133,10 +139,10 @@ class respondent_population():
     def sample(self, sample_size: int) -> pd.DataFrame:
         """Create a random variable sample from a the defined latent_distribution
         Args:
-            sample_size (int): _description_
+            sample_size (int): Sample size
 
         Returns:
-            pd.DataFrame: _description_
+            pd.DataFrame: Data Frame with columns that represent competency domains. Shape: (N, 2D)
         """
         D = self.latent_dimension
         sample = self.latent_distribution.rvs(size=sample_size)

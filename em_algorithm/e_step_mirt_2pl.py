@@ -19,17 +19,7 @@ class e_step_ga_mml(e_step):
         super().__init__(incomplete_data=incomplete_data)
         self.model = model
 
-    # # TODO: Make this more efficient using multiple response patterns as input
-    # def conditional_ability_normalising_constant(self, response_pattern, N=1000):
-    #     # function
-    #     def response_prob(theta): return self.model.response_matrix_probability(
-    #         theta=np.expand_dims(theta, axis=0), response_matrix=np.expand_dims(response_pattern, axis=0))
-    #     # Monte Carlo Integration
-    #     mean = 0
-    #     for i in range(0, N):
-    #         theta = self.model.sample_competency()
-    #         mean += response_prob(theta)/N
-    #     return(mean)
+
 
     # TODO: Make this more efficient using multiple response patterns as input
     def conditional_ability_normalising_constant(self, response_data, N=5000):
@@ -50,26 +40,9 @@ class e_step_ga_mml(e_step):
             current_person_parameters (dict): Current person Parameters from last M-Step or initiation
         """
         # Calculate Expected Values
-        # M = response_data.shape[0]
-        # J = response_data.shape[1]
         normalising_constant_array = self.conditional_ability_normalising_constant(
             response_data.to_numpy())
 
-        # def r_0(theta: np.array):
-        #     numerator = self.model.response_matrix_probability(
-        #         theta=theta, response_matrix=response_data.to_numpy())
-        #     denominator = normalising_constant_array
-        #     return(np.sum(np.divide(numerator, denominator), axis=1))
-
-        # def r_item(item: int, theta: np.array):
-        #     numerator = np.array(self.model.response_matrix_probability(
-        #         theta=theta, response_matrix=response_data.to_numpy()))
-        #     # This coefficient is different to r_0
-        #     numerator = np.multiply(
-        #         numerator, response_data.iloc[:, item].to_numpy().transpose())
-        #     denominator = normalising_constant_array
-        #     # TODO: Monte Carlo
-        #     return(np.sum(np.divide(numerator, denominator), axis=1))
 
         if iter == -1:
             self.N = 1000
@@ -115,25 +88,6 @@ class e_step_ga_mml(e_step):
                            "q_item_list": q_item_list}
         return(q_function_dict)
 
-    # def get_qmc_variance_data(self, normalising_constant_array, response_data, sample_size=30):
-    #     sigma = self.model.person_parameters["covariance"]
-    #     A = self.model.item_parameters["discrimination_matrix"]
-    #     delta = self.model.item_parameters["intercept_vector"]
-    #     J = response_data.shape[1]
-    #     q_data = np.empty(shape=(sample_size, 1+J))
-    #     for i in range(0, sample_size):
-    #         theta_sample = self.model.sample_competency(
-    #             sample_size=self.N, qmc=True)
-    #         q_function_list = self.prepare_q_functions(
-    #             theta_sample, response_data, normalising_constant_array)
-    #         q_values = [q_function_list["q_0"](sigma)]
-    #         for j in range(0, J):  # TODO: For performance reasons only use a few random items e.g. two
-    #             a_item = A[j, :]
-    #             delta_item = delta[j]
-    #             q_values.append(
-    #                 q_function_list["q_item_list"][j](a_item, delta_item))
-    #         q_data[i] = np.array(q_values)
-    #     return(q_data)
 
     def get_mc_variance_data(self, normalising_constant_array, response_data):
         sigma = self.model.person_parameters["covariance"]
@@ -151,7 +105,7 @@ class e_step_ga_mml(e_step):
         ci = (mean - error, mean + error)
         return(q_values)
 
-    # TODO: Anderen Test nehmen der besser mit kleineren Stichproben ist (rank-sum)
+    # TODO: Maybe different test for smaller sample sizes (rank-sum)
     def get_qmc_variance_data(self, normalising_constant_array, response_data, sample_size=30):
         sigma = self.model.person_parameters["covariance"]
         A = self.model.item_parameters["discrimination_matrix"]
@@ -184,7 +138,6 @@ class e_step_ga_mml(e_step):
         numerator = np.multiply(
             numerator, response_data.iloc[:, item].to_numpy().transpose())
         denominator = normalising_constant_array
-        # TODO: Monte Carlo
         return(np.sum(np.divide(numerator, denominator), axis=1))
 
     def q_0(self, theta, normalising_constant_array, response_data):
@@ -202,39 +155,6 @@ class e_step_ga_mml(e_step):
             return(np.mean(product))
         return(func)
 
-    # def q_0_gradient_a(self, theta, r_0_theta):
-    #     D = self.model.latent_dimension
-    #     N = theta.shape[0]
-    #     constant = np.multiply(r_0_theta, 1/self.model.latent_density(theta))
-    #     constant = np.multiply(
-    #         constant, 1/np.sqrt(np.power(2*np.math.pi, D)))
-
-    #     def quadratic_form_func(sigma): return np.sum(np.multiply(
-    #         np.squeeze(np.dot(np.expand_dims(theta, 1), np.linalg.inv(sigma))), theta), axis=1)
-
-    #     def grad1(sigma_flat): return np.sqrt(
-    #         np.linalg.det(sigma_flat.reshape((D, D))))
-
-    #     def grad2(sigma_flat): return quadratic_form_func(
-    #         sigma_flat.reshape((D, D)))
-
-    #     def func(sigma):
-    #         quadratic_form = quadratic_form_func(sigma)
-    #         # The product-rule for derivatives is applied
-    #         # sum1
-    #         sum1 = np.exp(quadratic_form).reshape((N, 1, 1)) * \
-    #             approx_fprime(f=grad1, xk=sigma.flatten(),
-    #                           epsilon=1.4901161193847656e-20).reshape((D, D))
-    #         # sum2
-    #         sum2 = np.sqrt(np.linalg.det(sigma))
-    #         sum2 = sum2*np.exp(quadratic_form)
-    #         sum2 = sum2.reshape((N, 1, 1)) * \
-    #             approx_fprime(f=grad2, xk=sigma.flatten(),
-    #                           epsilon=1.4901161193847656e-20).reshape((N, D, D))
-    #         integrant = np.multiply(constant.reshape(
-    #             (N, 1, 1)), np.add(sum1, sum2))
-    #         return(np.mean(integrant, axis=0))
-    #     return(func)
 
     def q_0_gradient(self, theta, r_0_theta):
         D = self.model.latent_dimension

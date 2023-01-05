@@ -122,10 +122,10 @@ class test_mirt_2pl(unittest.TestCase):
                                    [1, 0, 1],
                                    [0, 0, 1]]))
         # One-Dimensional
-        competency_1d = self.mirt_2pl_1d.derive_competency(U)
+        competency_1d = self.mirt_2pl_1d.predict_competency(U)
         self.assertTrue(competency_1d.shape == (3, 1))
         # Two-Dimensional
-        competency_1d = self.mirt_2pl_2d.derive_competency(U)
+        competency_1d = self.mirt_2pl_2d.predict_competency(U)
         self.assertTrue(competency_1d.shape == (3, 3))
 
 

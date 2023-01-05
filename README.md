@@ -1,8 +1,3 @@
-
-<br/><br/>
-<br/><br/>
-<br/><br/>
-<br/><br/>
 # Competency-Gain-Prediction
 
 Competency-Gain-Prediction provides packages and analysis tools for Longitudinal Item Response Theory models. The focus of this repository is to estimate and predict the competency gain that is achieved during a learning intervention.
@@ -92,3 +87,18 @@ Late EM, Full Covariance:
  [-0.1001 -0.1183  0.5563  0.4743]
  [-0.1381 -0.1214  0.4743  0.5789]]
 ```
+
+If one wants to conduct an extensive simulation study for different model types and input parameters, it is recommended to generate a simulation dataset using the experiment_worker.py module. Inside the file, one can set the parameters for the simulation. Then the file can be executed from the command line as follows:
+
+```
+python experiment_worker.py
+```
+
+This will return a prompt that asks for the type of Q-matrix that the expeiments should utilize:
+
+```
+Enter Q_type (full, pyramid, seperated):
+```
+
+If one of the three allowed q-types is entered, the worker will generate the dataset accoring to the settings used. And store the results in the specified file. Note that the default file is "results/{{q_type}}_q.csv".
+

@@ -20,7 +20,8 @@ class test_mirt_2pl_gain(unittest.TestCase):
                                [0.5, 0.5, 0.5]])
         self.mirt_2pl_gain = mirt_2pl_gain(
             item_dimension=4, latent_dimension=3, A=A, delta=delta, early_sigma=sigma,
-            late_sigma=sigma, latent_corr=sigma_corr)
+            late_sigma=sigma, latent_corr=sigma_corr, mu=np.array([1.5,1.5,1.5]),
+            convolution_variance=np.array([3,3,3]))
 
     def test_dimensions(self):
         self.assertEqual(self.mirt_2pl_gain.item_dimension, 4)
@@ -43,8 +44,8 @@ class test_mirt_2pl_gain(unittest.TestCase):
         s = np.array([[0, 0, 0],
                       [0, 0, 0],
                       [1, 1, 1]])
-        icc_values = self.mirt_2pl_gain.icc(theta=theta, s=s, cross=True)
-        self.assertTrue(icc_values.shape == (3, 2, 4))
+        icc_values = self.mirt_2pl_gain.icc(theta=theta, s=s,cross=True)
+        self.assertTrue(icc_values.shape == (2, 3, 4))
 
 
 if __name__ == '__main__':

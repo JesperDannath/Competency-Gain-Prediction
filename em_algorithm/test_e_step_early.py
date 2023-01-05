@@ -83,14 +83,11 @@ class test_mirt_2pl(unittest.TestCase):
             q_item_value = q_item(a_item=a_item, delta_item=delta_item)
             self.assertTrue(q_item_value != 0.0)
 
-    # TODO: implement for Q_0
+
     def test_gradients_against_numerical(self):
         # Simulate vast response data
         sigma = np.array([[1, 0.5], [0.5, 1]])
-        latent_distribution = multivariate_normal(
-            mean=np.array([0, 0]), cov=sigma)
-        population = respondent_population(
-            latent_dimension=2, latent_distribution=latent_distribution)
+        population = respondent_population(latent_dimension=2)
         Q = np.array([[1, 0],
                       [1, 0],
                       [0, 1],
@@ -98,8 +95,8 @@ class test_mirt_2pl(unittest.TestCase):
                       [1, 1]])
         response_simulation_obj = response_simulation(
             population=population, item_dimension=5)
-        early_item_params = response_simulation_obj.initialize_random_item_parameters(
-            Q=Q)
+        # early_item_params = response_simulation_obj.initialize_random_item_parameters(
+        #     Q=Q)
         sample = response_simulation_obj.sample(200)["early_responses"]
         model = mirt_2pl(latent_dimension=2, item_dimension=5, Q=Q)
         e_step = e_step_ga_mml(

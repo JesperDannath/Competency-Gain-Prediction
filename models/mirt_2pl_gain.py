@@ -7,15 +7,17 @@ from scipy.optimize import minimize
 
 
 class mirt_2pl_gain(mirt_2pl):
+    """Model Class for competency gain
+    """
 
     def __init__(self, item_dimension: int, latent_dimension: int,  mu: np.array = np.empty(0),  A=np.empty(0), Q=np.empty(0),
-                 delta=np.empty(0), early_sigma=np.empty(0), late_sigma=np.empty(0), latent_corr=np.empty(0)):
+                 delta=np.empty(0), early_sigma=np.empty(0), late_sigma=np.empty(0), latent_corr=np.empty(0), convolution_variance=np.empty(0)):
         super().__init__(item_dimension, latent_dimension=latent_dimension, A=A, Q=Q)
         self.person_parameters["early_sigma"] = early_sigma
         self.person_parameters["mean"] = np.concatenate(
             (np.zeros(latent_dimension), mu), axis=0)
         self.type = "gain"
-        self.person_parameters["convolution_variance"] = np.empty(0)
+        self.person_parameters["convolution_variance"] = convolution_variance
         self.initialize_gain_parameters(early_sigma, late_sigma, latent_corr)
         self.update_conditional_covariance()
 
@@ -23,53 +25,7 @@ class mirt_2pl_gain(mirt_2pl):
                                   convolution_variance=np.empty(0), sigma=True):
         super().initialize_from_responses(late_response_data, sigma)
         D = self.latent_dimension
-        # if convolution_variance.size == 0:
-        #     p_early = np.mean(early_response_data, axis=1)
-        #     p_late = np.mean(late_response_data, axis=1)
-        #     p_diff = np.subtract(p_late, p_early)
-        #     if not logit:
-        #         # Var(p_late) = Var(p_diff) + Var(p_early) + 2*Cov(p_diff, p_early)
-        #         var_p_early = np.var(p_early)
-        #         var_p_late = np.var(p_late)
-        #         var_p_diff = np.var(p_diff)
-        #         cov_early_diff = pd.DataFrame(
-        #             np.stack((p_diff, p_early), axis=1)).cov().to_numpy()[0, 1]
-        #         early_share = var_p_early/var_p_late
-        #         late_share = (var_p_diff)/var_p_late
-        #         cov_share = cov_early_diff/var_p_late
-        #     else:
-        #         p_early[p_early == 0] = np.min(p_early[p_early != 0])
-        #         p_early[p_early == 1] = np.max(p_early[p_early != 1])
-        #         p_late[p_late == 0] = np.min(p_late[p_late != 0])
-        #         p_late[p_late == 1] = np.max(p_late[p_late != 1])
-        #         logit_early = np.log(np.divide(p_early, 1 -
-        #                                        p_early))
-        #         logit_late = np.log(np.divide(p_late, 1 -
-        #                                       p_late))
-        #         logit_diff = logit_late - logit_early
-        #         var_logit_early = np.var(logit_early)
-        #         var_logit_late = np.var(logit_late)
-        #         var_logit_diff = np.var(logit_diff)
-        #         cov_early_diff = pd.DataFrame(
-        #             np.stack((logit_diff, logit_early), axis=1)).cov().to_numpy()[0, 1]
-        #         early_share = var_logit_early/var_logit_late
-        #         late_share = (var_logit_diff)/var_logit_late
-        #         cov_share = cov_early_diff/var_logit_late
-        #     # rho und p sollten vectoren sein!
-        #     late_sigma_var = np.ones(D)*late_share/early_share
-        #     late_sigma_sd_vector = np.sqrt(late_sigma_var)
-        #     sd_matrix = np.diag(late_sigma_sd_vector)
-        #     late_sigma = np.dot(
-        #         np.dot(sd_matrix, self.person_parameters["early_sigma"]), sd_matrix)
-        #     self.person_parameters["late_sigma"] = late_sigma
-        #     self.person_parameters["covariance"][D:2*D, D:2*D] = late_sigma
-        #     psi_diag = np.ones(D)*cov_share/early_share
-        #     psi = np.zeros((D, D))
-        #     psi[np.diag_indices_from(psi)] = psi_diag
-        #     self.person_parameters["covariance"][0:D, D:2*D] = psi
-        #     self.person_parameters["covariance"][D:2*D, 0:D] = psi.transpose()
-        #     self.person_parameters["convolution_variance"] = np.diag(
-        #         self.get_cov("convolution"))
+
         if convolution_variance.size == 0:
             p_early = np.mean(early_response_data, axis=1)
             p_late = np.mean(late_response_data, axis=1)
@@ -85,18 +41,13 @@ class mirt_2pl_gain(mirt_2pl):
                                           p_late))
             var_logit_early = np.var(logit_early)
             var_logit_late = np.var(logit_late)
-            # cov_early_diff = pd.DataFrame(
-            #     np.stack((logit_diff, logit_early), axis=1)).cov().to_numpy()[0, 1]
-            # early_share = var_logit_early/var_logit_late
-            # late_share = (var_logit_diff)/var_logit_late
-            # cov_share = cov_early_diff/var_logit_late
+
             # rho und p sollten vectoren sein!
             late_sigma_var = np.ones(D)*var_logit_late/var_logit_early - 1
             late_sigma_sd_vector = np.sqrt(late_sigma_var)
             sd_matrix = np.diag(late_sigma_sd_vector)
             late_sigma = np.dot(
                 np.dot(sd_matrix, self.person_parameters["early_sigma"]), sd_matrix)
-            #self.person_parameters["late_sigma"] = late_sigma
             self.person_parameters["covariance"][D:2*D, D:2*D] = late_sigma
             psi_diag = np.zeros(D)
             psi = np.zeros((D, D))
@@ -130,8 +81,6 @@ class mirt_2pl_gain(mirt_2pl):
 
     def initialize_gain_parameters(self, early_sigma=np.empty(0), late_sigma=np.empty(0), latent_corr=np.empty(0)):
         D = self.latent_dimension
-        #mu = np.ones(2*D)
-        #mu[0:D] = 0
         mu = self.person_parameters["mean"]
         sigma_psi = np.identity(self.latent_dimension*2)
         sigma_psi[sigma_psi != 1] = 0.5
@@ -150,6 +99,13 @@ class mirt_2pl_gain(mirt_2pl):
             person_parameter_update = {"covariance": sigma_psi, "mean": mu}
             self.set_parameters({"person_parameters": person_parameter_update})
 
+    def set_parameters(self, parameters: dict, dependencies=True):
+        if not dependencies:
+            return super().set_parameters(parameters)
+        else:
+            super().set_parameters(parameters)
+            self.update_conditional_covariance()
+
     # TODO: Maybe reduce number of times the matrix calculations are done here
     def update_conditional_covariance(self):
         D = self.latent_dimension
@@ -164,13 +120,12 @@ class mirt_2pl_gain(mirt_2pl):
         early_mean_predictor = np.dot(psi, inv_late_cov)
         early_conditional_cov = self.get_cov(
             "early") - np.dot(np.dot(psi, inv_late_cov), psi.transpose())
-        # TODO: Check where Psi needs to be transposed!
         late_conditional_cov = self.get_cov(
             "late") - np.dot(np.dot(psi.transpose(), inv_early_cov), psi)
         person_parameters = {"early_conditional_covariance": early_conditional_cov,
                              "early_conditional_mean_predictor": early_mean_predictor,
                              "late_conditional_covariance": late_conditional_cov}
-        self.set_parameters({"person_parameters": person_parameters})
+        self.set_parameters({"person_parameters": person_parameters}, dependencies=False)
 
     def check_sigma(self, sigma: np.array = np.empty(0), enforce_early_cov=False, callback=True, enforce_convolution_var=False):
         D = self.latent_dimension
@@ -202,6 +157,10 @@ class mirt_2pl_gain(mirt_2pl):
         return(True)
 
     def corr_to_sigma(self, corr_vector, check=True, type="only_late"):
+        """Converts a vector that encodes the covariance back to the covariance matrix.
+         There are different ways of storing the covariance matrix sigma in a vector, 
+        depending on the contraints that are enforced on it. Therefore, cases are seperated.
+        """
         D = self.latent_dimension
         if type == "only_late":
             sigma_psi_triu = np.triu(self.person_parameters["covariance"], k=1)
@@ -257,8 +216,6 @@ class mirt_2pl_gain(mirt_2pl):
     def fix_sigma(self, sigma_psi, sigma_constraint="early_constraint", convolution_constraint=False):
         D = self.latent_dimension
         J = self.item_dimension
-        # if sigma_constraint != "esigma_spsi":
-        #     sigma_psi = super().fix_sigma(sigma_psi)
         if (sigma_constraint == "early_constraint") & (not convolution_constraint):
             sigma_psi[0:D, 0:D] = self.person_parameters["covariance"][0:D, 0:D]
         if convolution_constraint:
@@ -274,8 +231,6 @@ class mirt_2pl_gain(mirt_2pl):
                     np.dot(Lambda, sigma_psi), Lambda.transpose())
                 early_diff = np.sum(
                     np.square(new_sigma[0:D, 0:D].flatten() - early_sigma.flatten()))
-                # late_diag_diff = np.sum(
-                #     np.square(np.diagonal(new_sigma[D:2*D, D:2*D]) - late_diag))
                 convolution_matrix = np.concatenate(
                     (np.identity(D), np.identity(D)), axis=1)
                 convolution_sigma = np.dot(convolution_matrix, new_sigma)
@@ -283,18 +238,6 @@ class mirt_2pl_gain(mirt_2pl):
                     convolution_sigma, convolution_matrix.transpose())
                 convolution_variance_diff = np.sum(
                     np.square(convolution_variance - np.diag(convolution_sigma)))
-                # Regularise by Q-Matrix
-                # QQ = np.concatenate(
-                #     (self.item_parameters["q_matrix"], self.item_parameters["q_matrix"]), axis=1)
-                # inv_Lambda = np.linalg.inv(Lambda)
-                # rot_QQ = np.dot(QQ, inv_Lambda)
-                # q_violation_sum = np.sum(np.square(rot_QQ[np.where(QQ == 0)]))
-                # Regularise by A Matrix
-                # rot_AA = np.dot(AA, inv_Lambda)
-                # rot_A1 = rot_AA[:, 0:D]
-                # rot_A2 = rot_AA[:, D:2*D]
-                # rot_A_diff = np.sum(
-                #     np.square(rot_A1.flatten() - rot_A2.flatten()))
                 # Regularise by conditional Distribution
                 psi_before = sigma_psi[0:D, D:2*D]
                 late_sigma_before = sigma_psi[D:2*D, D:2*D]
@@ -309,37 +252,19 @@ class mirt_2pl_gain(mirt_2pl):
                 mean_pred_diff = np.sum(np.square(conditional_mean_predictor_rot.flatten(
                 ) - conditional_mean_predictor_before.flatten()))
                 return(early_diff + convolution_variance_diff + mean_pred_diff)
-            #x0 = np.identity(2*D).flatten()
+            #Optimize
             x0 = np.ones(2*D)
             Lambda = minimize(
                 fun=func, x0=x0, method="BFGS", options={"maxiter": 100000}).x  # .reshape((2*D, 2*D))
             Lambda = np.diag(Lambda)
             sigma_psi = np.dot(np.dot(Lambda, sigma_psi), Lambda.transpose())
             inv_Lambda = np.linalg.inv(Lambda)
-            # rot_AA = np.dot(AA, inv_Lambda)
-            # rot_A1 = rot_AA[:, 0:D]
-            # rot_A2 = rot_AA[:, D:2*D]
-            # rot_A = np.mean(np.stack((rot_A1, rot_A2), axis=2), axis=2)
-            # self.item_parameters["discrimination_matrix"] = rot_A
         return(sigma_psi)
 
-    # def icc(self, theta, s, A=np.empty(0), delta=np.empty(0), cross=True):
-    #     if not cross:
-    #         icc_values = super().icc(theta=theta+s, A=A, delta=delta)
-    #     else:
-    #         competency = np.tile(s, (theta.shape[0], 1))
-    #         competency = competency.reshape(
-    #             (s.shape[0], theta.shape[0], self.latent_dimension))  # TODO: Müsste nicht theta.shape[0] vorne stehen?
-    #         #competency = np.expand_dims(theta, axis=1)
-    #         competency = np.add(competency, theta)
-    #         competency = competency.reshape(
-    #             s.shape[0]*theta.shape[0], self.latent_dimension)
-    #         icc_values = super().icc(theta=competency, A=A, delta=delta)
-    #         icc_values = icc_values.reshape(
-    #             (s.shape[0], theta.shape[0], self.item_dimension))
-    #     return(icc_values)
 
     def icc(self, theta, s, A=np.empty(0), delta=np.empty(0), cross=True, save=False):
+        if A.size ==0:
+            A = self.item_parameters["discrimination_matrix"]
         if not cross:
             icc_values = super().icc(theta=theta+s, A=A, delta=delta, save=save)
         else:
@@ -359,8 +284,6 @@ class mirt_2pl_gain(mirt_2pl):
         if not qmc:
             sample = multivariate_normal.rvs(
                 size=sample_size, mean=mu, cov=cov)
-            # if self.latent_dimension == 1:
-            #    sample = np.expand_dims(sample, axis=1)
         else:
             sample = MultivariateNormalQMC(
                 mean=mu, cov=cov, engine=None).random(sample_size)
@@ -369,6 +292,11 @@ class mirt_2pl_gain(mirt_2pl):
         return(sample)
 
     def get_cov(self, type="full"):
+        """Get the covariance of a relevant latent quantity. Different types are considered.
+
+        Args:
+            type (str, optional): Type of covariance. Defaults to "full".
+        """
         D = self.latent_dimension
         sigma_psi = self.person_parameters["covariance"]
         if type == "full":
@@ -461,7 +389,7 @@ class mirt_2pl_gain(mirt_2pl):
             raise Exception(
                 "Prior ability and Response matrix don't have same length")
         correct_response_probabilities = self.icc(
-            theta=theta, s=s, A=A, delta=delta, cross=True)  # TODO: Hier anpassen an tiling!
+            theta=theta, s=s, A=A, delta=delta, cross=True)
         response_matrix = np.expand_dims(response_matrix, axis=1)
         probability_vector = np.add(np.multiply(correct_response_probabilities, response_matrix),
                                     np.multiply(np.subtract(1, correct_response_probabilities), np.subtract(1, response_matrix)))
@@ -469,7 +397,6 @@ class mirt_2pl_gain(mirt_2pl):
         # TODO: Log-option
         return(probability.transpose())
 
-    # TODO: Immer ein tiling verwenden und Methoden mit tiling anstelle von cross definieren, sicherer!
     def tile_competency_gain(self, s, theta):
         s_tile = np.tile(s, reps=(theta.shape[0], 1))
         s_tile = s_tile.reshape(
@@ -481,8 +408,8 @@ class mirt_2pl_gain(mirt_2pl):
     def realize_interpretation(interpretation="lower gain bound"):
         pass
 
-    def marginal_response_loglikelihood(self, response_data, theta, N=1000):
-        s_sample = self.sample_gain(N, qmc=False)
+    def marginal_response_loglikelihood(self, response_data, theta, K=1000):
+        s_sample = self.sample_gain(K, qmc=False)
         response_matrix_prob = self.response_matrix_probability(
             theta=theta, s=s_sample, response_matrix=response_data)
         conditional_competency_density = self.latent_density(
@@ -496,13 +423,10 @@ class mirt_2pl_gain(mirt_2pl):
         return(response_loglikelihood)
 
     def answer_log_likelihood(self, s, theta, answer_vector):
-        # TODO: check why so many values are returned!
         ICC_values = self.icc(theta=np.expand_dims(
             theta, axis=0), s=np.expand_dims(s, axis=0), cross=False)[0]
         latent_density = self.latent_density(
             theta=theta, s=s, type="full", save=True)
-        # log_likelihood = np.dot(answer_vector, np.log(ICC_values + np.float64(1.7976931348623157e-309))[0]) + np.dot(
-        #     (1-answer_vector), np.log(1-ICC_values + np.float64(1.7976931348623157e-309))[0]) + np.log(latent_density)
         log_likelihood = np.dot(answer_vector, np.log(ICC_values + np.float64(1.7976931348623157e-309))) + np.dot(
             (1-answer_vector), np.log(1-ICC_values + np.float64(1.7976931348623157e-309))) + np.log(latent_density)
         return(log_likelihood)

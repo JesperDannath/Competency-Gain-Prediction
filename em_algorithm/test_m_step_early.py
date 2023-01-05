@@ -44,7 +44,7 @@ class test_mirt_2pl(unittest.TestCase):
             return(-1*(input[0]**2 + input[1]**2))
         x0 = np.array([10, -10])
         result = self.m_step_2pl.genetic_algorithm(
-            fitness_function=q_func, x0=x0, population_size=100)
+            fitness_function=q_func, x0=x0, population_size=100, mutation_variance=1)
         diff = np.sqrt(np.sum(np.square(result) -
                               np.square(np.array([0.0, 0.0]))))
         self.assertTrue(diff < 0.3)

@@ -255,7 +255,6 @@ def fit_late_model(sample, parameter_dict, stop_threshold, person_method,
     late_model = mirt_2pl_gain(item_dimension=item_dimension, latent_dimension=latent_dimension, mu=gain_mean,
                                early_sigma=estimated_early_sigma,
                                Q=parameter_dict["real_late_parameters"]["item_parameters"]["q_matrix"])
-    # TODO: Check if theta_hat can be used
     late_model.initialize_from_responses(
         late_response_data=sample["late_responses"], early_response_data=sample["early_responses"],
         convolution_variance=sample["convolution_variance"], sigma=False)
@@ -300,8 +299,25 @@ def mirt_simulation_experiment(sample_size, item_dimension=20, latent_dimension=
                                         "real_early", "real_parameters"],
                                stop_threshold=2,
                                ensure_id=False, q_share=0.0, early_person_method="newton_raphson", late_person_method="ga",
-                               sigma_constraint="early_constraint", real_theta=False,
+                               sigma_constraint="early_constraint",
                                gain_mean=1) -> dict:
+    """Simulation Experiment that uses a number of specified baselines and has various options for differentiating. 
+
+    Args:
+        sample_size (int): Sample Size
+        q_type (str, optional): Type of Q-matrix that is used Defaults to "seperated".
+        methods (list, optional): List of parameter estimation methods. Defaults to ["late_em", "initial", "difference", "real_early", "real_parameters"].
+        stop_threshold (int, optional): Threshold for EM-stopping criterion. Defaults to 2.
+        ensure_id (bool, optional): Ensure that Q-matrix is identifiable (especially pyramid Q-matrix). Defaults to False.
+        q_share (float, optional): How strong to orinet the real discriminations on the Q-matrix. Defaults to 0.0.
+        early_person_method (str, optional): Optimization method in M-Step for early EM person parameters. Defaults to "newton_raphson".
+        late_person_method (str, optional):  Optimization method in M-Step for late EM person parameters. Defaults to "ga".
+        sigma_constraint (str, optional): Type of covariance matrix used. Defaults to "early_constraint".
+        gain_mean (int, optional): Mean competency gain of the simulation. Defaults to 1.
+
+    Returns:
+        dict: _description_
+    """
     # Simulate Responses
     if sigma_constraint == "esigma_spsi":
         sigma_type = sigma_constraint
@@ -363,6 +379,9 @@ def mirt_simulation_experiment(sample_size, item_dimension=20, latent_dimension=
 
 def pure_competency_baseline(sample, parameter_dict, early_person_method, late_person_method,
                              sigma_constraint, stop_threshold, gain_mean):
+    """
+    Pure Competency Baseline that restrics the covariance to not allow inter-competency correlations.
+    """
     # Fit Parameters from Early_Model
     early_estimated_parameters, early_initial_parameters, early_run, early_model = fit_early_model(
         parameter_dict=copy.deepcopy(parameter_dict), sample=sample, stop_threshold=stop_threshold, person_method=early_person_method, sigma_constraint="identity")
@@ -381,6 +400,8 @@ def pure_competency_baseline(sample, parameter_dict, early_person_method, late_p
 
 
 def initial_params_baseline(sample, parameter_dict, sigma_constraint, gain_mean):
+    """Initial Parameters as baseline.
+    """
     # Initialize model
     latent_dimension = parameter_dict["latent_dimension"]
     item_dimension = parameter_dict["item_dimension"]
@@ -401,7 +422,6 @@ def initial_params_baseline(sample, parameter_dict, sigma_constraint, gain_mean)
     # Initialize Model
     late_model = mirt_2pl_gain(item_dimension=item_dimension, latent_dimension=latent_dimension, mu=gain_mean,
                                early_sigma=estimated_early_sigma)
-    # TODO: Check if theta_hat can be used
     late_model.initialize_from_responses(
         late_response_data=sample["late_responses"], early_response_data=sample["early_responses"],
         convolution_variance=sample["convolution_variance"],
@@ -426,6 +446,8 @@ def initial_params_baseline(sample, parameter_dict, sigma_constraint, gain_mean)
 
 def late_em_optimization(sample, parameter_dict, stop_threshold, early_person_method,
                          late_person_method, sigma_constraint, real_theta=False, gain_mean=1):
+    """Late EM Method (with unrestricted Covariance.)
+    """
     # Fit Parameters from Early_Model
     early_estimated_parameters, early_initial_parameters, early_run, early_model = fit_early_model(
         parameter_dict=copy.deepcopy(parameter_dict), sample=sample, stop_threshold=stop_threshold, person_method=early_person_method, sigma_constraint=sigma_constraint)
@@ -444,6 +466,8 @@ def late_em_optimization(sample, parameter_dict, stop_threshold, early_person_me
 
 
 def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, early_person_method, sigma_constraint, gain_mean=np.empty(0)):
+    """Difference Baseline. Uses two normal MIRT-2PL models to estiate gain parameters.
+    """
     # Estimate early parameters with standard-procedure
     early_estimated_parameters, early_initial_parameters, early_run, early_model = fit_early_model(sample=sample,
                                                                                                    parameter_dict=copy.deepcopy(
@@ -517,6 +541,8 @@ def two_mirt_2pl_baseline(sample, parameter_dict, stop_threshold, early_person_m
 
 
 def real_early_params_baseline(sample, parameter_dict, stop_threshold, late_person_method, sigma_constraint, gain_mean):
+    """Real Early Parameters Baseline. Uses real early covariance and real individual initial competencies to estimate competency gain.
+    """
     # theta = sample["latent_trait"]
     estimated_early_parameters = copy.deepcopy(
         parameter_dict["real_early_parameters"])
@@ -549,6 +575,8 @@ def real_early_params_baseline(sample, parameter_dict, stop_threshold, late_pers
 
 def real_parameters_baseline(sample, parameter_dict, late_person_method, early_person_method,
                              sigma_constraint, stop_threshold, gain_mean):
+    """Real Parameters Baseline. Uses the real model parameters to estimate the individual latent traits. 
+    """
     estimated_early_parameters = copy.deepcopy(
         parameter_dict["real_early_parameters"])
     estimated_late_parameters = copy.deepcopy(
@@ -586,6 +614,7 @@ def real_parameters_baseline(sample, parameter_dict, late_person_method, early_p
 
 
 def direct_marginal_optimization(model, response_data):
+    """Baseline  that performs direct optimzation of the Marginal Log-Likelihood without EM-Algorithm."""
     # Get initial parameters
     x0 = params_to_vector(model)
     response_data = response_data.to_numpy()

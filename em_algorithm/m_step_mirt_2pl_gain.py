@@ -57,6 +57,7 @@ class m_step_ga_mml_gain(m_step_ga_mml):
                     2*D, 2*D)))
         return(func)
 
+    #!!! Not save to use
     def q_0_gradient_cholesky(self, pe_functions):
         def func(cholesky_sigma_psi_vector):
             D = self.model.latent_dimension
@@ -65,15 +66,11 @@ class m_step_ga_mml_gain(m_step_ga_mml):
                 cholesky_sigma_psi)] = cholesky_sigma_psi_vector
             sigma_psi = np.dot(cholesky_sigma_psi,
                                cholesky_sigma_psi.transpose())
-            # if self.sigma_constraint == "early_constraint":
-            #    sigma_psi[0:D, 0:D] = self.model.person_parameters["covariance"][0:D, 0:D]
-            # Apply chain rule
 
             def outer_func(C_vector):
                 C = C_vector.reshape((2*D, 2*D))
                 sigma_psi = np.dot(C, C.transpose())
-                # TODO: Is this correct?
-                #sigma_psi[0:D, 0:D] = self.model.person_parameters["covariance"][0:D, 0:D]
+
                 return(sigma_psi.flatten())
             chain2 = approx_fprime(f=outer_func, xk=cholesky_sigma_psi.flatten(),
                                    epsilon=1.4901161193847656e-20).reshape(((2*D)**2, 2*D, 2*D))

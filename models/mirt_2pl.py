@@ -10,6 +10,8 @@ from scipy.optimize import minimize
 
 
 class mirt_2pl(irt_model):
+    """Multivariate Two Parameter Logistic IRT Model.
+    """
 
     def __init__(self, item_dimension: int, latent_dimension: int, A=np.empty(0), Q=np.empty(0), delta=np.empty(0), sigma=np.empty(0), empty=False) -> None:
         """
@@ -156,8 +158,6 @@ class mirt_2pl(irt_model):
         if not qmc:
             sample = multivariate_normal.rvs(size=sample_size, mean=np.zeros(
                 self.latent_dimension), cov=self.person_parameters["covariance"])
-            # if self.latent_dimension == 1:
-            #    sample = np.expand_dims(sample, axis=1)
         else:
             sample = MultivariateNormalQMC(mean=np.zeros(
                 self.latent_dimension), cov=self.person_parameters["covariance"], engine=None).random(sample_size)
@@ -245,18 +245,15 @@ class mirt_2pl(irt_model):
         dim = self.person_parameters["covariance"].shape[0]
         new_sigma = np.identity(dim).astype(
             np.float64)
-        # new_sigma[np.triu_indices(self.latent_dimension, k=1)] = corr
         np.place(new_sigma,
                  mask=np.triu(np.ones(dim), k=1).astype(np.bool), vals=corr_u)
         corr_l = new_sigma.transpose()[np.tril_indices_from(new_sigma, k=-1)]
         np.place(new_sigma,
                  mask=np.tril(np.ones(dim), k=-1).astype(np.bool), vals=corr_l)
-        # new_sigma[np.tril_indices(self.latent_dimension, k=-1)] = corr
         if check == True:
             self.check_sigma(new_sigma)
         return(new_sigma)
 
-    # TODO: Write unittest
     def fill_zero_discriminations(self, discriminations, item: int = -1) -> np.array:
         if item == -1:
             mask = self.item_parameters["q_matrix"].flatten().astype(np.bool)
@@ -276,8 +273,14 @@ class mirt_2pl(irt_model):
                 raise Exception("Placing Discriminations has failed")
             return(a_item)
 
-    def marginal_response_loglikelihood(self, response_data: pd.DataFrame(), N=1000):
-        theta = self.sample_competency(N)
+    def marginal_response_loglikelihood(self, response_data: pd.DataFrame(), K=1000):
+        """Marginal response log-likelihood. Measures the model fit of item parameters and latent distribution parameters.
+
+        Args:
+            response_data (pd.DataFrame): Response data of shape (number_respondents, J)
+            N (int, optional): Monte Carlo integration sample size. Defaults to 1000.
+        """
+        theta = self.sample_competency(K)
         response_matrix_prob = self.response_matrix_probability(
             theta=theta, response_matrix=response_data.to_numpy())
         marginal_vector_probabilities = np.log(

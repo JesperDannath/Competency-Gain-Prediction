@@ -29,8 +29,14 @@ class response_simulation():
         if self.item_dimension < self.latent_dimension:
             raise Exception("To few Items for given latent dimension")
 
-    # TODO: Prevent All-zero columns
     def initialize_random_q_structured_matrix(self, structure="singular", ensure_id=False, early=True):
+        """Initializa a random Q-matrix with the specified structure.
+
+        Args:
+            structure (str, optional): Q-matrix structure. Defaults to "singular".
+            ensure_id (bool, optional): Whether to ensure identifiability, explicitley for pyramid Q-matrices. Defaults to False.
+            early (bool, optional): Define if Q-matrix is for the early model, otherwise it is for the late model. Defaults to True.
+        """
         if structure == "singular":
             Q = np.ones((self.item_dimension, self.latent_dimension))
         elif structure == "seperated":
@@ -69,7 +75,6 @@ class response_simulation():
                         [1 if j <= i else 0 for j in range(0, self.latent_dimension)])
             Q = np.array(Q)
         # TODO: Add structure Chained
-        # TODO: Add structure Full-Complexity
         elif (structure == "full"):
             n_pattern = 2**self.latent_dimension-1  # exclude all zero row
             if n_pattern > self.item_dimension:
@@ -106,52 +111,14 @@ class response_simulation():
         if time in ["late"]:
             return self.late_model.item_parameters["q_matrix"]
 
-    # def initialize_random_item_parameters(self, Q=np.empty(0)):
-    #     if Q.size == 0:
-    #         Q = self.early_model.item_parameters["q_matrix"]
-    #     A = np.empty((self.item_dimension, self.latent_dimension))
-    #     for i in range(0, self.item_dimension):
-    #         A[i] = np.exp(multivariate_normal(mean=np.zeros(
-    #             self.latent_dimension), cov=np.identity(self.latent_dimension)).rvs())
-    #     A = np.multiply(A, Q)
-    #     delta = multivariate_normal(mean=np.zeros(
-    #         self.item_dimension), cov=np.identity(self.item_dimension)).rvs()
-    #     item_parameters = {"discrimination_matrix": A,
-    #                        "intercept_vector": delta}
-    #     self.early_model.item_parameters.update(item_parameters)
-    #     return(self.early_model.item_parameters)
 
-    # # TODO: Prohibit all-zero rows
-    # def initialize_random_item_parameters(self, Q=np.empty(0)):
-    #     if Q.size == 0:
-    #         Q = self.early_model.item_parameters["q_matrix"]
-    #     # 1. Sample relative difficulties
-    #     relative_difficulties_sample = np.sqrt(1)*self.population.sample(
-    #         self.item_dimension)
-    #     # t-Verteilung oder Gleichverteilung mal ausprobieren
-    #     A = np.zeros((self.item_dimension, self.latent_dimension))
-    #     delta = np.zeros(self.item_dimension)
-    #     # 2. Get smallest relative difficulty per item
-    #     for i in range(0, self.item_dimension):
-    #         rel_item = relative_difficulties_sample[i]
-    #         # np.where(rel_item >= np.median(rel_item))[0][0]
-    #         rel_min = np.where(rel_item == np.min(rel_item))[0]
-    #         # 3. Sample a_median
-    #         a_min = np.exp(multivariate_normal(
-    #             mean=0.5*np.ones(1), cov=np.identity(1)).rvs())
-    #         # 4. Calculate delta
-    #         delta[i] = -a_min*rel_item[rel_min]
-    #         # 5. Calculate all other a_{i,j}'s
-    #         A[i] = -delta[i]/rel_item
-    #     item_parameters = {"discrimination_matrix": np.multiply(A, Q),
-    #                        "intercept_vector": delta}
-    #     self.early_model.item_parameters.update(item_parameters)
-    #     if len(A[A <= 0]) > 0:
-    #         raise Exception("Negative Discriminations sampled")
-    #     return(self.early_model.item_parameters)
-
-    # TODO: Prohibit all-zero rows
     def initialize_random_item_parameters(self, Q=np.empty(0), early=True):
+        """Initialize random item parameters given a Q-Matrix
+
+        Args:
+            Q (np.array, optional): Q-matrix. Defaults to np.empty(0).
+            early (bool, optional): Early model?. Defaults to True.
+        """
         if Q.size == 0:
             if early:
                 Q = self.early_model.item_parameters["q_matrix"]
@@ -162,11 +129,8 @@ class response_simulation():
             1)-0.3, cov=np.ones(1)).rvs(self.item_dimension)
         # t-Verteilung oder Gleichverteilung mal ausprobieren
         A = np.zeros((self.item_dimension, self.latent_dimension))
-        #delta = np.zeros(self.item_dimension)
         # 2. Get smallest relative difficulty per item
         for i in range(0, self.item_dimension):
-            #A[i] = np.exp(multivariate_normal(
-            #    mean=np.zeros(self.latent_dimension), cov=0.5*np.identity(self.latent_dimension)).rvs())+1
             A[i] = np.random.exponential(scale=0.5*np.ones(self.latent_dimension))+1
         item_parameters = {"discrimination_matrix": np.multiply(A, Q),
                            "intercept_vector": delta}
@@ -179,23 +143,17 @@ class response_simulation():
             self.late_model.item_parameters.update(item_parameters)
             return(self.late_model.item_parameters)
 
-    # def scale_discriminations(self, sigma_psi):
-    #    self.late_model.set_parameters(
-    #        {"person_parameters": {"covariance": sigma_psi}})
-    #    # We have to change A, since it should be according to the
-    #    # size or the diagonal values of COV(\theta + s)
-    #    A = self.late_model.item_parameters["discrimination_matrix"]
-    #    convolution_sigma_diag = np.diag(np.diag(
-    #        self.late_model.get_cov("convolution")))
-    #    scaled_A = np.dot(A, np.linalg.inv(convolution_sigma_diag))
-    #    item_parameters = {"discrimination_matrix": scaled_A}
-    #    self.late_model.item_parameters.update(item_parameters)
 
     def set_sigma_psi(self, sigma_psi):
         self.late_model.set_parameters(
             {"person_parameters": {"covariance": sigma_psi}})
 
-    def sample(self, sample_size) -> pd.DataFrame:
+    def sample(self, sample_size: int) -> dict:
+        """Sample Latent Traits and Item responses accorind to the given parameters.
+
+        Args:
+            sample_size (int): Respondent sample size
+        """
         sample = {}
         sample["latent_trait"], sample["latent_gain"] = self.population.sample(
             sample_size=sample_size)

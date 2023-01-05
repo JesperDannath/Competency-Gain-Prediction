@@ -24,7 +24,6 @@ class m_step_ga_mml(m_step):
         self.model = model
         self.sigma_constraint = sigma_constraint
 
-    # TODO: Python package für ga ausprobieren: cmaes (https://github.com/CMA-ES/pycma)
     def genetic_algorithm(self, fitness_function, x0: np.array, constraint_function=lambda x: True,
                           population_size: int = 40, p_mutate: float = 0.5, p_crossover: float = 0.2, mutation_variance=0.1, max_iter=40):
         # Helping functions
@@ -94,7 +93,7 @@ class m_step_ga_mml(m_step):
             population_base.sort(
                 reverse=True, key=lambda individual: individual[0])
             # print("Highest Current Fitness:")
-            # TODO: I could decrease mutation variance in case of lower fitness
+            # TODO: could decrease mutation variance in case of lower fitness
             if (abs(current_highest_fitness - before_highest_fitness) < 0.001) or (current_highest_fitness < before_highest_fitness):
                 if candidate_population:
                     converged = True
@@ -123,7 +122,6 @@ class m_step_ga_mml(m_step):
             if 0 in list(second_derivative):
                 if np.any(np.where(first_derivative == 0)[0] != np.where(second_derivative == 0)[0]):
                     skip_terminate = True
-                # TODO: Anstatt Nullrunde eher einen kleinen Schritt in die Richtung der First order Ableitung gehen. Learning Rate setzen, Terminierung Aussetzen
                 first_derivative[np.abs(second_derivative) <= 0.00001] = -1 * alpha * \
                     first_derivative[np.abs(second_derivative) <= 0.00001]
                 second_derivative[np.abs(second_derivative) <= 0.00001] = 1
@@ -140,45 +138,8 @@ class m_step_ga_mml(m_step):
         # Find the new value for Sigma
         # print("Maximize Q-0")
         # The only parameters we need to optimise are the correlations
-        # TODO: Matrix X^tX = sigma benutzen um p.s.d zu enforcen
         log_likelihood = 0.0
 
-        # def q_0(corr_vector):
-        #     sigma = self.model.corr_to_sigma(corr_vector)
-        #     return pe_functions["q_0"](np.reshape(
-        #         sigma, newshape=(
-        #             self.model.latent_dimension, self.model.latent_dimension)))
-
-        # def q_0_cholesky(cholesky_sigma_vector):
-        #     D = self.model.latent_dimension
-        #     cholesky_sigma = np.identity(D)
-        #     cholesky_sigma[np.tril_indices_from(
-        #         cholesky_sigma)] = cholesky_sigma_vector
-        #     sigma = np.dot(cholesky_sigma, cholesky_sigma.transpose())
-        #     return pe_functions["q_0"](np.reshape(
-        #         sigma, newshape=(
-        #             self.model.latent_dimension, self.model.latent_dimension)))
-
-        # def q_0_gradient_cholesky(cholesky_sigma_vector):
-        #     D = self.model.latent_dimension
-        #     cholesky_sigma = np.identity(D)
-        #     # np.place(cholesky_sigma,
-        #     #         mask=np.tril(np.ones(D), k=1).astype(np.bool), vals=cholesky_sigma_vector)
-        #     cholesky_sigma[np.tril_indices_from(
-        #         cholesky_sigma)] = cholesky_sigma_vector
-        #     sigma = np.dot(cholesky_sigma, cholesky_sigma.transpose())
-        #     # Apply chain rule
-        #     # gradient = np.dot(
-        #     #    np.dot(sqrt_sigma, pe_functions["q_0_grad"](sigma)), sqrt_sigma.transpose())
-        #     chain2 = approx_fprime(f=lambda C: np.dot(
-        #         C.reshape((D, D)), C.reshape((D, D)).transpose()).flatten(), xk=cholesky_sigma.flatten(),
-        #         epsilon=1.4901161193847656e-20).reshape((D**2, D, D))
-        #     # gradient = np.dot(pe_functions["q_0_grad"](
-        #     #    sigma), 2*np.dot(sqrt_sigma, np.ones(sqrt_sigma.shape)))
-        #     gradient = np.sum(np.sum(np.multiply(
-        #         pe_functions["q_0_grad"](sigma), chain2), axis=1), axis=1).reshape((D, D))
-        #     gradient = gradient[np.tril_indices_from(gradient)]
-        #     return(gradient.flatten())
         q_0 = self.q_0(pe_functions)
         q_0_cholesky = self.q_0_cholesky(pe_functions)
         q_0_gradient_cholesky = self.q_0_gradient_cholesky(pe_functions)
@@ -256,10 +217,8 @@ class m_step_ga_mml(m_step):
                 new_sigma = trunc(new_sigma, 4)
                 print(new_sigma)
             elif person_method == "newton_raphson":
-                # x0 = scipy.linalg.sqrtm(
-                #    self.model.person_parameters["covariance"]).flatten()
                 x0 = scipy.linalg.cholesky(
-                    self.model.person_parameters["covariance"], lower=True)  # TODO: Change everything to X^T X (not urgent)
+                    self.model.person_parameters["covariance"], lower=True) 
                 x0 = x0[np.tril_indices_from(x0)]
                 new_sigma_cholesky_vector = self.newton_raphson(
                     x0=x0, funct=q_0_gradient_cholesky)
@@ -316,11 +275,6 @@ class m_step_ga_mml(m_step):
             # if len(x0) == 1:
             new_item_parameters = self.genetic_algorithm(
                 fitness_function=q_item, x0=x0, constraint_function=lambda arg: np.all(arg[0:(len(arg)-1)] > 0), mutation_variance=1)
-            # fitness_function=q_item, x0=x0, constraint_function=lambda arg: np.all(arg[0:len(arg)-1] > 0))
-            # else:
-            #     new_item_parameters = cma.CMAEvolutionStrategy(
-            #         x0=x0, sigma0=2).optimize(lambda x: -1*q_item(x), maxfun=1000, n_jobs=0).result.xfavorite
-            # sys.stdout.close()
             log_likelihood += q_item(new_item_parameters)
             new_a_item = self.model.fill_zero_discriminations(
                 new_item_parameters[0:self.model.latent_dimension], item=item)
@@ -368,13 +322,11 @@ class m_step_ga_mml(m_step):
                 cholesky_sigma)] = cholesky_sigma_vector
             sigma = np.dot(cholesky_sigma, cholesky_sigma.transpose())
             # Apply chain rule
-            # gradient = np.dot(
-            #    np.dot(sqrt_sigma, pe_functions["q_0_grad"](sigma)), sqrt_sigma.transpose())
+
             chain2 = approx_fprime(f=lambda C: np.dot(
                 C.reshape((D, D)), C.reshape((D, D)).transpose()).flatten(), xk=cholesky_sigma.flatten(),
                 epsilon=1.4901161193847656e-20).reshape((D**2, D, D))
-            # gradient = np.dot(pe_functions["q_0_grad"](
-            #    sigma), 2*np.dot(sqrt_sigma, np.ones(sqrt_sigma.shape)))
+
             gradient = np.sum(np.sum(np.multiply(
                 pe_functions["q_0_grad"](sigma), chain2), axis=1), axis=1).reshape((D, D))
             gradient = gradient[np.tril_indices_from(gradient)]
